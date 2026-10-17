@@ -18,6 +18,14 @@ Archive SHA-256: `46e458e3125421abd5144b409c75e40dfb8aee7a98d284c57fc6582e673ccd
 
 The Studio UI reported zero TypeScript errors, 16 passing tests and a successful build. A real Preview refresh was observed and recorded with the new testnet banner, public demo link and UTF-8 title-byte counter visible. The downloaded-file comparison establishes source persistence independently of that UI report. Historical contract deployment and mainnet scope remain as described separately below.
 
+## UI refinement and exact resynchronization
+
+A later 17 October UI pass used generated desktop/mobile design references in the same Studio project. The references were concepts, not live application or transaction screenshots. Five UI files were reviewed and refined locally for amount-summary consistency, narrow layouts, contrast, touch targets, dialog keyboard focus and network-switch pending/error feedback, then synchronized back to Studio.
+
+A new [independent source readback](../tests/evidence/studio-ui-source-readback-2026-10-17.json) verifies all six intended files byte-for-byte: the five UI files plus the restored strict Arc Testnet facts helper. Eleven protected public-source paths matched; Studio package/Vite host adaptations matched the earlier Studio export. A package lock was already absent from Studio exports. Two unused generated network helpers were removed. No contract, application chain, test or dependency change was adopted.
+
+Final archive SHA-256: `336844d1c6cd173e827858ceb47e4cdeeb3601e44e4f6580b1ea91158e32a886`, 3,541,106 bytes. The archive remains private; only sanitized source hashes and scope are public. Both actual desktop and mobile Studio Previews were observed. Typecheck, 16 frontend tests, build and local dependency isolation passed. Wallet-dialog initial focus, bidirectional Tab wrapping and Escape/return-focus were exercised without initiating a new wallet request. Real-wallet transaction and network-switch failure branches were not rerun as part of that UI sync; later release checks must be recorded separately.
+
 ## Build boundary
 
 The historical deployment used Solidity `0.8.28+commit.7893614a`, Paris EVM and the optimizer with 200 runs. Its runtime-code hash and source hashes are recorded in the deployment manifest. The OpenZeppelin `ReentrancyGuard.sol` bytes were checked against the official `@openzeppelin/contracts@5.1.0` package.
