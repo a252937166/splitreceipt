@@ -1,0 +1,47 @@
+{
+  "name": "splitreceipt",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22 <23",
+    "npm": ">=10"
+  },
+  "packageManager": "npm@10.9.8",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "check": "npm run typecheck && npm test && npm run build",
+    "contracts:build": "forge build",
+    "contracts:test": "forge test",
+    "chain:check": "node tools/testnet/check.mjs",
+    "verify:isolation": "node scripts/verify-isolation.mjs",
+    "verify:clean": "node scripts/verify-clean-install.mjs"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "5.1.0",
+    "@tanstack/react-query": "5.104.3",
+    "@wagmi/core": "3.0.0",
+    "lucide-react": "0.468.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "sonner": "1.7.4",
+    "viem": "2.57.2",
+    "wagmi": "3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "autoprefixer": "10.6.1",
+    "postcss": "8.5.30",
+    "tailwindcss": "3.4.19",
+    "tsx": "4.20.5",
+    "typescript": "5.9.3",
+    "vite": "6.4.4"
+  }
+}

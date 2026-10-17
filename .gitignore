@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.cache/
+.verification/
+scratchpad/
+evidence-private/
+*.mp4
+*.webm
+.env
+.env.*
+!.env.example
+contracts/out/
+contracts/cache/
+tools/testnet/runs/
+*.log
+.DS_Store

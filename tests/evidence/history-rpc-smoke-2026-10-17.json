@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-17",
+  "kind": "read-only-live-RPC-smoke",
+  "rpc": "https://rpc.testnet.arc.io",
+  "chainId": 5042002,
+  "contract": "0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26",
+  "billId": "1",
+  "head": "67666623",
+  "reason": "receipts-found",
+  "pages": 3,
+  "paidCount": 2,
+  "deploymentBlockConfigured": false,
+  "scannedFrom": "67660624",
+  "scannedTo": "67666623",
+  "receipts": {
+    "0x096b0f2bad306d6e70690274c368512c8c1316f6": "0xe1fba09d727a8eae598de8f794ac11b4fdfbfa188355805d492ffb856b598e25",
+    "0x92f6772880bc6ffe9f8112e5f202bb7ec5428b6e": "0x4736c401fc2a9757d21f6c09aa8de5550e8c9e76027475ce2fb63a7e3b176b54"
+  },
+  "notes": "Used createPublicClient from this independent project's installed viem and the new scanReceiptHistoryBatch helper. Checked eth_chainId before reading getBill, latest head and matching SharePaid logs. No signing, transactions, wallet access, API credentials or payments. Scripted RPC verification; not browser or Studio recording evidence. No deployment block was supplied to exercise resumable genesis fallback and early stop after both paid receipts."
+}
