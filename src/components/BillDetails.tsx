@@ -8,7 +8,6 @@ import {
   usePublicClient,
 } from 'wagmi'
 import { parseAbiItem, decodeEventLog } from 'viem'
-import { WalletButton } from '@/wallet-ui'
 import {
   CheckCircle2,
   Clock,
@@ -17,6 +16,7 @@ import {
   AlertCircle,
   ArrowLeft,
   RefreshCw,
+  ChevronRight,
 } from 'lucide-react'
 import {
   SPLIT_RECEIPT_ABI,
@@ -26,6 +26,7 @@ import {
 } from '../splitReceiptContract'
 import { requireChain } from '@/onchain-facts'
 import { fmtNativeUsdc } from '../usdcFormat'
+import { networkSwitchErrorMessage } from '../wallet-ui'
 import {
   confirmedPaymentHash,
   historyRangeComplete,
@@ -39,14 +40,11 @@ import {
 
 const chain = requireChain(ARC_TESTNET_CHAIN_ID)
 
-// SharePaid(uint256 indexed billId, address indexed payer, uint256 amount)
 const SHARE_PAID_EVENT = parseAbiItem(
   'event SharePaid(uint256 indexed billId, address indexed payer, uint256 amount)'
 )
 
-function fmtAddress(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`
-}
+function fmtAddress(a: string) { return `${a.slice(0, 6)}…${a.slice(-4)}` }
 
 function parseOnchainError(error: unknown): string {
   const msg = (error as Error)?.message?.toLowerCase() ?? ''
@@ -68,7 +66,7 @@ interface BillDetailsProps {
 
 export default function BillDetails({ billId, onBack }: BillDetailsProps) {
   const { address, chainId, isConnected } = useAccount()
-  const { switchChain } = useSwitchChain()
+  const { switchChain, isPending: isSwitching, error: switchError } = useSwitchChain()
   const publicClient = usePublicClient({ chainId: ARC_TESTNET_CHAIN_ID })
 
   const isWrongChain = isConnected && chainId !== ARC_TESTNET_CHAIN_ID
@@ -76,9 +74,9 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
   const scopeKey = receiptScopeKey({ chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS, billId })
 
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState('')
+  const [detailsOpen, setDetailsOpen] = useState(false)
 
-  // Public history and this session's mined receipts are partitioned by
-  // chain + contract + bill. The connected wallet never changes their owner.
   const [sessionReceiptHashes, setSessionReceiptHashes] = useState<
     Record<string, Record<string, `0x${string}`>>
   >({})
@@ -87,12 +85,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
   const [historyStatus, setHistoryStatus] = useState<Record<string, { loading: boolean; error?: string }>>({})
 
   // ── contract read ───────────────────────────────────────────────
-  const {
-    data: billData,
-    isLoading,
-    error: readError,
-    refetch,
-  } = useReadContract({
+  const { data: billData, isLoading, error: readError, refetch } = useReadContract({
     address: SPLIT_RECEIPT_ADDRESS,
     abi: SPLIT_RECEIPT_ABI,
     functionName: 'getBill',
@@ -101,99 +94,53 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     query: { enabled: isContractDeployed },
   })
 
-  // ── write + wait for confirmation ───────────────────────────────
+  // ── write + wait ────────────────────────────────────────────────
   const { writeContract, data: submittedTxHash, isPending, error: writeError, reset } = useWriteContract()
-
-  // Capture the payer address and billId AT THE MOMENT the user submits.
-  // This snapshot is immune to wallet switches or bill navigation that happen
-  // while the transaction is in-flight.
   const pendingPaymentRef = useRef<PaymentSnapshot | null>(null)
   const [paymentContext, setPaymentContext] = useState<PaymentSnapshot | null>(null)
   const [replacementNotice, setReplacementNotice] = useState<string | null>(null)
 
-  // useWaitForTransactionReceipt tracks the submitted hash to confirmed status.
-  // data.transactionHash is the hash of the CONFIRMED (mined) transaction, which
-  // may differ from submittedTxHash if the wallet replaced or sped-up the tx.
-  const {
-    isLoading: isConfirming,
-    isSuccess,
-    data: receiptData,
-    error: confirmationError,
-  } = useWaitForTransactionReceipt({
-    hash: submittedTxHash,
-    chainId: ARC_TESTNET_CHAIN_ID,
-    onReplaced: ({ reason }) => {
-      setReplacementNotice(reason === 'cancelled'
-        ? 'Your wallet cancelled this transaction. No payment receipt was recorded; you can try again.'
-        : reason === 'repriced'
-          ? 'Your wallet sped up this transaction. The receipt uses the final mined transaction.'
-          : 'Your wallet replaced this transaction. A payment is confirmed only if the final transaction includes your SharePaid event.')
-    },
-  })
+  const { isLoading: isConfirming, isSuccess, data: receiptData, error: confirmationError } =
+    useWaitForTransactionReceipt({
+      hash: submittedTxHash,
+      chainId: ARC_TESTNET_CHAIN_ID,
+      onReplaced: ({ reason }) => {
+        setReplacementNotice(reason === 'cancelled'
+          ? 'Your wallet cancelled this transaction. No payment receipt was recorded; you can try again.'
+          : reason === 'repriced'
+            ? 'Your wallet sped up this transaction. The receipt uses the final mined transaction.'
+            : 'Your wallet replaced this transaction. A payment is confirmed only if the final transaction includes your SharePaid event.')
+      },
+    })
 
-  // ── effect: record CONFIRMED receipt hash ───────────────────────
-  // Guards applied before writing to receiptHashes:
-  //   1. receipt.status === 'success'  — rejects mined cancels/replacements
-  //   2. A SharePaid log from SPLIT_RECEIPT_ADDRESS exists in receipt.logs
-  //   3. The log's decoded billId matches the captured pending billId
-  //   4. The log's decoded payer matches the captured pending payer
-  // Using the snapshot ref (not live address/billId) so a wallet switch or
-  // bill navigation during confirmation can't mis-attribute the receipt.
+  // ── confirmed receipt effect ─────────────────────────────────────
   const confirmedForTx = useRef<`0x${string}` | null>(null)
   useEffect(() => {
     if (!isSuccess || !receiptData || confirmedForTx.current === receiptData.transactionHash) return
-
     const pending = pendingPaymentRef.current
     if (!pending) return
-
-    // Scan receipt.logs for a SharePaid event from our contract that
-    // matches the captured billId and payer.
-    // decodeEventLog throws on topic mismatch, so non-SharePaid logs are
-    // skipped via the catch block — no manual topic comparison needed.
     const decodedLogs: Pick<SharePaidLog, 'address' | 'args'>[] = []
-
     for (const log of receiptData.logs) {
-      // Only consider logs from our contract
       if (log.address.toLowerCase() !== pending.contract.toLowerCase()) continue
-
       try {
-        const decoded = decodeEventLog({
-          abi: SPLIT_RECEIPT_ABI,
-          data: log.data,
-          topics: log.topics,
-          eventName: 'SharePaid',
-        })
+        const decoded = decodeEventLog({ abi: SPLIT_RECEIPT_ABI, data: log.data, topics: log.topics, eventName: 'SharePaid' })
         decodedLogs.push({ address: log.address, args: decoded.args })
-      } catch {
-        // Not a SharePaid log or wrong shape — skip
-      }
+      } catch { /* not SharePaid */ }
     }
-
     const matchedHash = confirmedPaymentHash(pending, submittedTxHash, {
-      status: receiptData.status,
-      transactionHash: receiptData.transactionHash,
-      logs: decodedLogs,
+      status: receiptData.status, transactionHash: receiptData.transactionHash, logs: decodedLogs,
     })
     if (!matchedHash) return
-
-    // All guards passed — this is a genuine confirmed payment.
     confirmedForTx.current = receiptData.transactionHash
     const paymentScopeKey = receiptScopeKey(pending)
     setSessionReceiptHashes(prev => ({
       ...prev,
-      [paymentScopeKey]: {
-        ...(prev[paymentScopeKey] ?? {}),
-        [pending.payer]: matchedHash,
-      },
+      [paymentScopeKey]: { ...(prev[paymentScopeKey] ?? {}), [pending.payer]: matchedHash },
     }))
-    // Refresh getBill so the paid flag updates.
     if (paymentScopeKey === scopeKey) void refetch()
   }, [isSuccess, receiptData, submittedTxHash, refetch, scopeKey])
 
   // ── log query ────────────────────────────────────────────────────
-  // Each batch extends the last successful range. A browser reload starts
-  // with recent blocks and can continue all the way back to deployment (or
-  // genesis when the deployment block is unknown), without a time cutoff.
   const [logsFetchToken, setLogsFetchToken] = useState(0)
   const billReadKey = billData
     ? `${billData[3]}:${billData[2].map((payer, index) => `${payer.toLowerCase()}:${billData[4][index]}`).join(',')}`
@@ -204,72 +151,56 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     let cancelled = false
     const paidPayers = billData[2].filter((_, index) => billData[4][index])
     if (paidPayers.length === 0) return
-
     const fetchLogs = async () => {
       setHistoryStatus(prev => ({ ...prev, [scopeKey]: { loading: true } }))
       try {
         if (publicClient.chain?.id !== ARC_TESTNET_CHAIN_ID) throw new Error('Receipt lookup requires Arc Testnet.')
         const head = await publicClient.getBlockNumber()
         if (cancelled) return
-        const startingHistory = historiesRef.current[scopeKey] ?? newReceiptHistory({
-          chainId: ARC_TESTNET_CHAIN_ID,
-          contract: SPLIT_RECEIPT_ADDRESS,
-          billId,
-        }, SPLIT_RECEIPT_DEPLOY_BLOCK)
+        const startingHistory = historiesRef.current[scopeKey] ?? newReceiptHistory(
+          { chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS, billId },
+          SPLIT_RECEIPT_DEPLOY_BLOCK
+        )
         const publish = (history: ReceiptHistory) => {
           if (cancelled) return
           historiesRef.current[scopeKey] = history
           setHistories(prev => ({ ...prev, [scopeKey]: history }))
         }
         const result = await scanReceiptHistoryBatch({
-          history: startingHistory,
-          head,
-          payers: billData[2],
-          paidPayers,
+          history: startingHistory, head,
+          payers: billData[2], paidPayers,
           amount: billData[3],
           isCancelled: () => cancelled,
           onPage: publish,
           fetchLogs: range => publicClient.getLogs({
-            address: SPLIT_RECEIPT_ADDRESS,
-            event: SHARE_PAID_EVENT,
-            args: { billId },
-            strict: true,
-            ...range,
+            address: SPLIT_RECEIPT_ADDRESS, event: SHARE_PAID_EVENT, args: { billId }, strict: true, ...range,
           }),
         })
         if (cancelled) return
         publish(result.history)
-        setHistoryStatus(prev => ({
-          ...prev,
-          [scopeKey]: { loading: false, error: result.error?.message },
-        }))
+        setHistoryStatus(prev => ({ ...prev, [scopeKey]: { loading: false, error: result.error?.message } }))
       } catch (error) {
         if (!cancelled) setHistoryStatus(prev => ({
-          ...prev,
-          [scopeKey]: { loading: false, error: error instanceof Error ? error.message : 'RPC unavailable.' },
+          ...prev, [scopeKey]: { loading: false, error: error instanceof Error ? error.message : 'RPC unavailable.' },
         }))
       }
     }
-
     void fetchLogs()
     return () => { cancelled = true }
-    // billReadKey tracks payer/paid/share changes without restarting for an
-    // otherwise identical refetch result. Every asynchronous result is scoped.
   }, [billId, scopeKey, billReadKey, isContractDeployed, publicClient, logsFetchToken])
 
-  // ── manual refresh ──────────────────────────────────────────────
-  // Refreshes both the getBill read AND the historical log query.
+  // ── refresh ─────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
     void refetch()
     setLogsFetchToken(t => t + 1)
   }, [refetch])
 
-  // An RPC can return an empty result while its event index is catching up.
-  // When the whole range was checked but a paid link is missing, an explicit
-  // retry rechecks history while retaining every already verified receipt.
   const handleRetryFullHistory = useCallback(() => {
     const previous = historiesRef.current[scopeKey]
-    const history = newReceiptHistory({ chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS, billId }, SPLIT_RECEIPT_DEPLOY_BLOCK)
+    const history = newReceiptHistory(
+      { chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS, billId },
+      SPLIT_RECEIPT_DEPLOY_BLOCK
+    )
     history.receipts = { ...(previous?.receipts ?? {}) }
     historiesRef.current[scopeKey] = history
     setHistories(prev => ({ ...prev, [scopeKey]: history }))
@@ -277,13 +208,20 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     setLogsFetchToken(t => t + 1)
   }, [billId, scopeKey, refetch])
 
-  // ── copy share link ─────────────────────────────────────────────
+  // ── copy link ───────────────────────────────────────────────────
   const handleCopyLink = useCallback(() => {
     const url = new URL(window.location.href)
     url.searchParams.set('bill', billId.toString())
-    void navigator.clipboard.writeText(url.toString())
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setCopyError('')
+    navigator.clipboard.writeText(url.toString())
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+      .catch(() => {
+        setCopyError('Could not copy. Please copy the URL from the address bar.')
+        setTimeout(() => setCopyError(''), 4000)
+      })
   }, [billId])
 
   // ── pay ─────────────────────────────────────────────────────────
@@ -291,8 +229,6 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     if (!billData || !address || isWrongChain || isPending || isConfirming) return
     reset()
     setReplacementNotice(null)
-    // Snapshot payer + billId NOW so the confirmation effect uses these
-    // values even if the wallet switches or the bill changes mid-flight.
     const pending: PaymentSnapshot = {
       payer: address.toLowerCase(), billId,
       chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS,
@@ -300,442 +236,482 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     }
     pendingPaymentRef.current = pending
     setPaymentContext(pending)
-    confirmedForTx.current = null  // allow re-confirmation for this new submission
+    confirmedForTx.current = null
     const [, , , share] = billData
     writeContract({
-      address: SPLIT_RECEIPT_ADDRESS,
-      abi: SPLIT_RECEIPT_ABI,
-      functionName: 'payShare',
-      args: [billId],
-      value: share,
-      chainId: ARC_TESTNET_CHAIN_ID,
+      address: SPLIT_RECEIPT_ADDRESS, abi: SPLIT_RECEIPT_ABI,
+      functionName: 'payShare', args: [billId],
+      value: share, chainId: ARC_TESTNET_CHAIN_ID,
     }, { onSuccess: hash => { pending.submittedHash = hash } })
   }, [billData, billId, writeContract, reset, address, isWrongChain, isPending, isConfirming])
 
-  // ── derived state ───────────────────────────────────────────────
-  let myIndex = -1
-  let myPaidState = false
-  let totalPaid = 0
+  // ── derived state ────────────────────────────────────────────────
+  let myIndex = -1, myPaidState = false, totalPaid = 0
   let payers: readonly `0x${string}`[] = []
   let paidStates: readonly boolean[] = []
-  let title = ''
-  let recipient = '' as `0x${string}`
-  let share = 0n
-  let totalAmount = '0'
-  let shareDisplay = '0'
+  let title = '', recipient = '' as `0x${string}`, share = 0n
+  let totalAmount = '0', shareDisplay = '0'
 
   const history = histories[scopeKey]
   const logStatus = historyStatus[scopeKey]
-  const isCurrentPayment = Boolean(paymentContext &&
+  const isCurrentPayment = Boolean(
+    paymentContext &&
     receiptScopeKey(paymentContext) === scopeKey &&
-    paymentContext.payer === address?.toLowerCase())
-  // Session receipts take precedence only after a matching mined event.
+    paymentContext.payer === address?.toLowerCase()
+  )
   const receiptHashes: Record<string, `0x${string}`> =
     { ...(history?.receipts ?? {}), ...(sessionReceiptHashes[scopeKey] ?? {}) }
-
-  // True only when the mined transaction was a successful payment:
-  //   - waitForReceipt reports success AND receipt.status === 'success'
-  //   - the confirmed hash is present in the current bill's receiptHashes
-  //     under the current wallet (proves SharePaid decoded correctly for
-  //     this bill/payer, per the effect guard — no ref read at render time)
-  const isConfirmedPayment =
-    Boolean(
-      isSuccess &&
-      receiptData?.status === 'success' &&
-      isCurrentPayment &&
-      address &&
-      receiptHashes[address.toLowerCase()] === receiptData.transactionHash
-    )
+  const isConfirmedPayment = Boolean(
+    isSuccess && receiptData?.status === 'success' && isCurrentPayment && address &&
+    receiptHashes[address.toLowerCase()] === receiptData.transactionHash
+  )
 
   if (billData) {
     ;[title, recipient, payers, share, paidStates] = billData
     payers.forEach((p, i) => {
-      if (p.toLowerCase() === address?.toLowerCase()) {
-        myIndex = i
-        myPaidState = paidStates[i]
-      }
+      if (p.toLowerCase() === address?.toLowerCase()) { myIndex = i; myPaidState = paidStates[i] }
       if (paidStates[i]) totalPaid++
     })
-    const totalRaw = share * BigInt(payers.length)
-    totalAmount = fmtNativeUsdc(totalRaw)
+    totalAmount = fmtNativeUsdc(share * BigInt(payers.length))
     shareDisplay = fmtNativeUsdc(share)
   }
-  const verifiedPaidCount = payers.filter((payer, index) =>
-    paidStates[index] && Boolean(receiptHashes[payer.toLowerCase()])).length
+
+  const verifiedPaidCount = payers.filter((p, i) => paidStates[i] && Boolean(receiptHashes[p.toLowerCase()])).length
   const allPaidReceiptsFound = totalPaid > 0 && verifiedPaidCount === totalPaid
   const allHistorySearched = Boolean(history && historyRangeComplete(history))
-  const olderBlocksRemain = Boolean(history && history.scannedFrom !== null && history.scannedFrom > history.floor)
-  const newerBlocksRemain = Boolean(history && history.scannedTo !== null && history.lastHead !== null && history.scannedTo < history.lastHead)
-
-  // The "pending" explorer link uses submittedTxHash so the user can watch
-  // the mempool.  The confirmed receipt link (on the payer row) uses
-  // receiptData.transactionHash which may differ after a replacement.
-  const pendingTxUrl = submittedTxHash
-    ? `${chain.explorerBase}/tx/${submittedTxHash}`
-    : null
+  const olderBlocksRemain = Boolean(history?.scannedFrom !== null && history?.scannedFrom !== undefined && history.scannedFrom > history.floor)
+  const newerBlocksRemain = Boolean(history?.scannedTo !== null && history?.lastHead !== null && history?.scannedTo !== undefined && history?.lastHead !== undefined && history.scannedTo < history.lastHead)
+  const pendingTxUrl = submittedTxHash ? `${chain.explorerBase}/tx/${submittedTxHash}` : null
+  const isSettled = billData && totalPaid === payers.length
+  const paidPct = payers.length > 0 ? Math.round((totalPaid / payers.length) * 100) : 0
 
   return (
-    <div className="w-full max-w-md mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
+    <div>
+      {/* ── Back + refresh ──────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 mb-6">
         <button
+          type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 text-sm font-500"
-          style={{ color: 'var(--muted)' }}
+          className="btn-ghost"
+          style={{ gap: '6px' }}
         >
-          <ArrowLeft size={15} />
+          <ArrowLeft size={14} aria-hidden="true" />
           New bill
         </button>
-        <div className="flex-1" />
-        <WalletButton />
+        {billData && (
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="btn-ghost ml-auto"
+            aria-label="Refresh bill"
+            title="Refresh"
+          >
+            <RefreshCw size={14} aria-hidden="true" />
+            Refresh
+          </button>
+        )}
       </div>
 
-      {/* Loading */}
+      {/* ── Loading ─────────────────────────────────────────────────── */}
       {isLoading && (
-        <div
-          className="rounded-2xl border p-8 flex flex-col items-center gap-3"
-          style={{ background: 'var(--surface-strong)', borderColor: 'var(--border)' }}
-        >
-          <div
-            className="w-5 h-5 border-2 rounded-full animate-spin"
-            style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
-          />
-          <span className="text-sm" style={{ color: 'var(--muted)' }}>Loading bill…</span>
+        <div className="card p-10 flex flex-col items-center gap-3">
+          <div className="spinner" aria-hidden="true" />
+          <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading bill…</p>
         </div>
       )}
 
-      {/* Read error */}
+      {/* ── Read error ──────────────────────────────────────────────── */}
       {readError && !isLoading && (
-        <div
-          className="rounded-2xl border p-6 flex flex-col items-center gap-4"
-          style={{ background: 'var(--surface-strong)', borderColor: 'var(--border)' }}
-        >
-          <AlertCircle size={28} style={{ color: 'var(--danger)' }} />
-          <p className="text-sm text-center" style={{ color: 'var(--danger)' }}>
+        <div className="card p-8 flex flex-col items-center gap-4 text-center">
+          <AlertCircle size={28} style={{ color: 'var(--danger)' }} aria-hidden="true" />
+          <p className="text-sm" style={{ color: 'var(--danger)' }}>
             {readError.message.includes('InvalidBillId')
               ? `Bill #${billId} does not exist.`
               : 'Could not load bill. Check your connection and try again.'}
           </p>
-          <button
-            onClick={handleRefresh}
-            className="flex items-center gap-1.5 text-sm font-600"
-            style={{ color: 'var(--accent)' }}
-          >
-            <RefreshCw size={14} /> Retry
+          <button type="button" onClick={handleRefresh} className="btn-ghost">
+            <RefreshCw size={14} aria-hidden="true" /> Retry
           </button>
         </div>
       )}
 
-      {/* Bill card */}
+      {/* ── Bill content ────────────────────────────────────────────── */}
       {billData && !isLoading && !readError && (
-        <>
-          {/* Summary card */}
-          <div
-            className="rounded-2xl border p-5 mb-4"
-            style={{ background: 'var(--surface-strong)', borderColor: 'var(--border)' }}
-          >
-            {/* Title + actions */}
-            <div className="flex items-start justify-between mb-1">
-              <h2 className="display text-xl font-600 text-balance" style={{ color: 'var(--ink)' }}>
-                {title}
-              </h2>
-              <div className="flex items-center gap-2 ml-3 shrink-0">
-                <span
-                  className="mono text-xs px-2 py-0.5 rounded-lg"
-                  style={{ background: 'var(--surface-muted)', color: 'var(--muted)' }}
-                >
-                  #{billId.toString()}
-                </span>
-                <button
-                  onClick={handleCopyLink}
-                  className="flex items-center gap-1 text-xs font-500 px-2 py-0.5 rounded-lg"
-                  style={{
-                    background: 'var(--surface-muted)',
-                    color: copied ? 'var(--success)' : 'var(--muted)',
-                  }}
-                  title="Copy shareable link"
-                >
-                  <Copy size={11} />
-                  {copied ? 'Copied' : 'Share'}
-                </button>
-                <button
-                  onClick={handleRefresh}
-                  className="p-1 rounded-lg"
-                  style={{ color: 'var(--subtle)' }}
-                  title="Refresh"
-                >
-                  <RefreshCw size={13} />
-                </button>
-              </div>
-            </div>
+        <div className="space-y-5">
 
-            {/* Share + total */}
-            <div
-              className="flex gap-4 mt-3 pt-3"
-              style={{ borderTop: '1px solid var(--border)' }}
-            >
+          {/* Title + meta */}
+          <div>
+            <h1 className="text-2xl font-bold mb-1 break-words" style={{ color: 'var(--ink)' }}>
+              {title}
+            </h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
+                Bill #{billId.toString()}
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="btn-ghost"
+                style={{ gap: '5px', padding: '4px 10px', minHeight: '44px', fontSize: '12px' }}
+                aria-live="polite"
+                aria-label={copied ? 'Link copied' : 'Copy bill link'}
+              >
+                <Copy size={12} aria-hidden="true" />
+                {copied ? 'Copied!' : 'Copy bill link'}
+              </button>
+            </div>
+            {copyError && (
+              <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }} role="alert">{copyError}</p>
+            )}
+          </div>
+
+          {/* Stats bar */}
+          <div className="card p-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
               <div>
-                <p
-                  className="text-xs uppercase tracking-wide mb-0.5"
-                  style={{ color: 'var(--subtle)', letterSpacing: '0.08em' }}
-                >
-                  Each pays
-                </p>
-                <p
-                  className="display text-lg font-600 tabular-nums"
-                  style={{ color: 'var(--ink)' }}
-                >
+                <p className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Each pays</p>
+                <p className="text-xl font-bold tabular-nums break-all" style={{ color: 'var(--ink)' }}>
                   {shareDisplay}{' '}
-                  <span className="text-sm font-500" style={{ color: 'var(--muted)' }}>USDC</span>
+                  <span className="text-sm font-medium" style={{ color: 'var(--muted)' }}>USDC</span>
                 </p>
               </div>
               <div>
-                <p
-                  className="text-xs uppercase tracking-wide mb-0.5"
-                  style={{ color: 'var(--subtle)', letterSpacing: '0.08em' }}
-                >
-                  Total bill
-                </p>
-                <p
-                  className="display text-lg font-600 tabular-nums"
-                  style={{ color: 'var(--ink)' }}
-                >
+                <p className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Total</p>
+                <p className="text-xl font-bold tabular-nums break-all" style={{ color: 'var(--ink)' }}>
                   {totalAmount}{' '}
-                  <span className="text-sm font-500" style={{ color: 'var(--muted)' }}>USDC</span>
+                  <span className="text-sm font-medium" style={{ color: 'var(--muted)' }}>USDC</span>
                 </p>
               </div>
-              <div className="ml-auto text-right">
-                <p
-                  className="text-xs uppercase tracking-wide mb-0.5"
-                  style={{ color: 'var(--subtle)', letterSpacing: '0.08em' }}
-                >
-                  Paid
-                </p>
-                <p
-                  className="display text-lg font-600 tabular-nums"
-                  style={{
-                    color: totalPaid === payers.length ? 'var(--success)' : 'var(--ink)',
-                  }}
-                >
-                  {totalPaid}/{payers.length}
+              <div className="col-span-2 sm:col-span-1 sm:text-right">
+                <p className="text-xs mb-1" style={{ color: 'var(--muted)' }}>{totalPaid} of {payers.length} paid</p>
+                <p className="text-sm font-semibold" style={{ color: isSettled ? 'var(--success)' : 'var(--ink)' }}>
+                  {paidPct}%
                 </p>
               </div>
             </div>
-
-            {/* Recipient */}
-            <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-              <p
-                className="text-xs uppercase tracking-wide mb-1"
-                style={{ color: 'var(--subtle)', letterSpacing: '0.08em' }}
-              >
-                Recipient
-              </p>
-              <a
-                href={`${chain.explorerBase}/address/${recipient}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mono text-xs flex items-center gap-1 w-fit"
-                style={{ color: 'var(--ink-2)' }}
-              >
-                {fmtAddress(recipient)}
-                <ExternalLink size={10} style={{ color: 'var(--subtle)' }} />
-              </a>
+            {/* Progress bar */}
+            <div className="progress-bar" role="progressbar" aria-valuenow={paidPct} aria-valuemin={0} aria-valuemax={100} aria-label="Payment progress">
+              <div className="progress-bar__fill" style={{ width: `${paidPct}%` }} />
             </div>
           </div>
 
-          {/* Payer rows */}
-          <div
-            className="rounded-2xl border divide-y divide-[var(--border)]"
-            style={{ background: 'var(--surface-strong)', borderColor: 'var(--border)' }}
-          >
-            {payers.map((p, i) => {
-              const isMe = p.toLowerCase() === address?.toLowerCase()
-              const paid = paidStates[i]
-              const payerReceiptHash = receiptHashes[p.toLowerCase()]
-              const payerTxUrl = payerReceiptHash
-                ? `${chain.explorerBase}/tx/${payerReceiptHash}`
-                : null
-
-              return (
-                <div key={p} className="flex items-center gap-3 px-4 py-3">
-                  {paid
-                    ? <CheckCircle2 size={16} style={{ color: 'var(--success)', flexShrink: 0 }} />
-                    : <Clock size={16} style={{ color: 'var(--subtle)', flexShrink: 0 }} />
-                  }
-                  <a
-                    href={`${chain.explorerBase}/address/${p}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mono text-xs flex-1 min-w-0 truncate"
-                    style={{ color: isMe ? 'var(--accent)' : 'var(--ink-2)' }}
-                  >
-                    {fmtAddress(p)}{isMe ? ' (you)' : ''}
-                  </a>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span
-                      className="text-xs font-600 px-2 py-0.5 rounded-lg"
-                      style={{
-                        background: paid ? '#edf7f1' : 'var(--surface-muted)',
-                        color: paid ? 'var(--success)' : 'var(--subtle)',
-                      }}
-                    >
-                      {paid ? 'Paid' : 'Pending'}
-                    </span>
-                    {/* Receipt link: visible on paid rows whenever a confirmed
-                        tx hash is known (from this session or from log recovery). */}
-                    {paid && payerTxUrl && (
-                      <a
-                        href={payerTxUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="View payment on explorer"
-                        style={{ color: 'var(--subtle)' }}
-                      >
-                        <ExternalLink size={12} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* History batches have a cursor; an RPC failure never discards prior pages. */}
-          {totalPaid > 0 && (
-            <div className="text-xs mt-3 px-1 space-y-1.5" style={{ color: 'var(--subtle)' }} aria-live="polite">
-              <p>
-                {verifiedPaidCount} of {totalPaid} paid receipt{totalPaid === 1 ? '' : 's'} verified.
-                {logStatus?.loading ? ' Looking up payment links…' : ''}
-              </p>
-              {history?.scannedFrom !== null && history?.scannedFrom !== undefined && history.scannedTo !== null && (
-                <p>
-                  Searched blocks {history.scannedFrom.toLocaleString()}–{history.scannedTo.toLocaleString()}.
-                  {allHistorySearched
-                    ? ` All blocks from ${SPLIT_RECEIPT_DEPLOY_BLOCK === null ? 'genesis' : 'deployment'} through ${history.lastHead?.toLocaleString()} were checked.`
-                    : !allPaidReceiptsFound
-                      ? olderBlocksRemain && newerBlocksRemain ? ' Newer and older blocks remain to be searched.'
-                        : newerBlocksRemain ? ' Newer blocks remain to be searched.'
-                          : olderBlocksRemain ? ' Older blocks remain to be searched.' : ''
-                      : ''}
-                </p>
-              )}
-              {logStatus?.error && (
-                <p style={{ color: 'var(--danger)' }}>
-                  Receipt lookup paused. Verified links and progress are kept. {logStatus.error}
-                </p>
-              )}
-              {!logStatus?.loading && !logStatus?.error && allHistorySearched && !allPaidReceiptsFound && (
-                <p>Some paid receipts were not returned by this RPC. Retry the full range after its event index catches up, or inspect the contract on the explorer.</p>
-              )}
-              {!logStatus?.loading && (!allPaidReceiptsFound || logStatus?.error) && (
-                <button
-                  onClick={allHistorySearched && !logStatus?.error ? handleRetryFullHistory : handleRefresh}
-                  className="inline-flex items-center gap-1.5 font-600 py-1"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  <RefreshCw size={12} />
-                  {logStatus?.error ? 'Retry receipt lookup' : allHistorySearched ? 'Retry full receipt history' : 'Continue receipt history'}
-                </button>
-              )}
+          {/* Settled banner */}
+          {isSettled && (
+            <div className="alert-success">
+              <CheckCircle2 size={18} aria-hidden="true" style={{ flexShrink: 0 }} />
+              <span className="font-medium">Bill settled. Everyone has paid their share.</span>
             </div>
           )}
 
-          {/* Wrong chain banner */}
-          {isWrongChain && myIndex !== -1 && !myPaidState && (
-            <div
-              className="rounded-xl px-4 py-3 mt-4 flex items-center gap-3"
-              style={{ background: '#fff3cd', border: '1px solid #e8d18f' }}
-            >
-              <AlertCircle size={15} style={{ color: '#a0700a', flexShrink: 0 }} />
-              <span className="text-sm" style={{ color: '#6b4d07' }}>Switch to Arc Testnet to pay.</span>
-              <button
-                onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
-                className="ml-auto text-xs font-600 rounded-lg px-3 py-1"
-                style={{ background: 'var(--accent)', color: '#fff' }}
+          {/* Payment receipts */}
+          <div className="card overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <h2 className="text-base font-semibold" style={{ color: 'var(--ink)' }}>Payment receipts</h2>
+              {totalPaid > 0 && (
+                <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: allPaidReceiptsFound ? 'var(--success)' : 'var(--muted)' }}>
+                  {allPaidReceiptsFound
+                    ? <><CheckCircle2 size={13} aria-hidden="true" /> {verifiedPaidCount} of {totalPaid} verified</>
+                    : logStatus?.loading
+                      ? <><div className="spinner" style={{ width: '12px', height: '12px' }} aria-hidden="true" /> Looking up receipts…</>
+                      : <>{verifiedPaidCount} of {totalPaid} verified</>
+                  }
+                </div>
+              )}
+            </div>
+
+            {/* Payer table */}
+            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              {/* Header row — desktop only */}
+              <div
+                className="hidden sm:grid grid-cols-[2rem_1fr_auto_auto] gap-3 px-5 py-2 text-xs font-medium"
+                style={{ color: 'var(--subtle)', borderBottom: '1px solid var(--border)' }}
               >
-                Switch
+                <span>#</span>
+                <span>Payer (wallet)</span>
+                <span>Status</span>
+                <span>Receipt</span>
+              </div>
+
+              {payers.map((p, i) => {
+                const isMe = p.toLowerCase() === address?.toLowerCase()
+                const paid = paidStates[i]
+                const payerReceiptHash = receiptHashes[p.toLowerCase()]
+                const payerTxUrl = paid && payerReceiptHash
+                  ? `${chain.explorerBase}/tx/${payerReceiptHash}`
+                  : null
+
+                return (
+                  <div key={p} className="px-5 py-3">
+                    {/* Desktop row */}
+                    <div className="hidden sm:grid grid-cols-[2rem_1fr_auto_auto] gap-3 items-center">
+                      <span className="text-sm font-medium" style={{ color: 'var(--subtle)' }}>{i + 1}</span>
+                      <div className="addr-cell flex items-center gap-2 min-w-0">
+                        <a
+                          href={`${chain.explorerBase}/address/${p}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="sr-mono text-sm min-w-0"
+                          style={{ color: isMe ? 'var(--accent-hover)' : 'var(--ink-2)' }}
+                          title={p}
+                        >
+                          {fmtAddress(p)}
+                        </a>
+                        {isMe && (
+                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ background: 'var(--surface-info)', color: 'var(--accent-hover)' }}>
+                            you
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        {paid
+                          ? <span className="badge-paid"><CheckCircle2 size={11} aria-hidden="true" />Paid</span>
+                          : <span className="badge-unpaid">Unpaid</span>
+                        }
+                      </div>
+                      <div className="min-w-[100px] text-right">
+                        {payerTxUrl ? (
+                          <a
+                            href={payerTxUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex min-h-[44px] items-center gap-1 text-sm font-medium"
+                            style={{ color: 'var(--accent-hover)' }}
+                          >
+                            View receipt <ExternalLink size={12} aria-hidden="true" />
+                          </a>
+                        ) : paid ? (
+                          <span className="text-xs" style={{ color: 'var(--subtle)' }}>
+                            {logStatus?.loading ? 'Looking up…' : '—'}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Mobile row */}
+                    <div className="sm:hidden flex items-start gap-3">
+                      <div className="mt-0.5">
+                        {paid
+                          ? <CheckCircle2 size={16} style={{ color: 'var(--success)' }} aria-label="Paid" />
+                          : <Clock size={16} style={{ color: 'var(--subtle)' }} aria-label="Unpaid" />
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <a
+                            href={`${chain.explorerBase}/address/${p}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="sr-mono text-sm addr-cell"
+                            style={{ color: isMe ? 'var(--accent-hover)' : 'var(--ink-2)' }}
+                            title={p}
+                          >
+                            {fmtAddress(p)}
+                          </a>
+                          {isMe && <span className="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0" style={{ background: 'var(--surface-info)', color: 'var(--accent-hover)' }}>you</span>}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1">
+                          {paid
+                            ? <span className="badge-paid text-xs"><CheckCircle2 size={10} aria-hidden="true" />Paid</span>
+                            : <span className="badge-unpaid text-xs">Unpaid</span>
+                          }
+                          {payerTxUrl && (
+                            <a
+                              href={payerTxUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex min-h-[44px] items-center gap-1 text-sm font-medium"
+                              style={{ color: 'var(--accent-hover)' }}
+                            >
+                              View receipt <ExternalLink size={11} aria-hidden="true" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Recipient row */}
+            <div className="px-5 pt-4 pb-5 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
+              <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--ink)' }}>Recipient</h3>
+              <p className="text-xs mb-1.5" style={{ color: 'var(--muted)' }}>
+                Recipient (receives {totalAmount} USDC)
+              </p>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`${chain.explorerBase}/address/${recipient}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="sr-mono text-sm addr-cell"
+                  style={{ color: 'var(--ink-2)' }}
+                  title={recipient}
+                >
+                  {fmtAddress(recipient)}
+                </a>
+                <a
+                  href={`${chain.explorerBase}/address/${recipient}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="View recipient on explorer"
+                  className="touch-target inline-flex items-center justify-center"
+                  style={{ color: 'var(--subtle)' }}
+                >
+                  <ExternalLink size={13} aria-hidden="true" />
+                </a>
+              </div>
+            </div>
+
+            {/* ── Receipt verification details (collapsible) ─────────── */}
+            {totalPaid > 0 && (
+              <div className="px-5 pb-4">
+                <button
+                  type="button"
+                  className="collapsible-trigger"
+                  onClick={() => setDetailsOpen(o => !o)}
+                  aria-expanded={detailsOpen}
+                  aria-controls="receipt-verification-details"
+                >
+                  <ChevronRight
+                    size={14}
+                    className={`collapsible-chevron${detailsOpen ? ' collapsible-chevron--open' : ''}`}
+                    aria-hidden="true"
+                  />
+                  Receipt verification details
+                </button>
+
+                {detailsOpen && (
+                  <div id="receipt-verification-details" aria-live="polite" className="space-y-2 pb-2">
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                      {verifiedPaidCount} of {totalPaid} paid receipt{totalPaid === 1 ? '' : 's'} verified onchain.
+                      {logStatus?.loading && ' Scanning blocks…'}
+                    </p>
+
+                    {history?.scannedFrom !== null && history?.scannedFrom !== undefined && history.scannedTo !== null && (
+                      <p className="text-xs" style={{ color: 'var(--subtle)' }}>
+                        Scanned blocks {history.scannedFrom.toLocaleString()}–{history.scannedTo.toLocaleString()}.
+                        {allHistorySearched
+                          ? ` Full range from ${SPLIT_RECEIPT_DEPLOY_BLOCK === null ? 'genesis' : 'deployment block'} through block ${history.lastHead?.toLocaleString()} checked.`
+                          : olderBlocksRemain && newerBlocksRemain ? ' Newer and older blocks remain.'
+                          : newerBlocksRemain ? ' Newer blocks remain.'
+                          : olderBlocksRemain ? ' Older blocks remain.' : ''}
+                      </p>
+                    )}
+
+                    {logStatus?.error && (
+                      <p className="text-xs" style={{ color: 'var(--danger)' }} role="alert">
+                        Lookup paused — verified links are kept. {logStatus.error}
+                      </p>
+                    )}
+
+                    {!logStatus?.loading && !logStatus?.error && allHistorySearched && !allPaidReceiptsFound && (
+                      <p className="text-xs" style={{ color: 'var(--subtle)' }}>
+                        Some receipts were not returned by this RPC. The event index may still be catching up. Retry or check the explorer.
+                      </p>
+                    )}
+
+                    {!logStatus?.loading && (!allPaidReceiptsFound || logStatus?.error) && (
+                      <button
+                        type="button"
+                        onClick={allHistorySearched && !logStatus?.error ? handleRetryFullHistory : handleRefresh}
+                        className="btn-ghost mt-1"
+                        style={{ fontSize: '12px', padding: '4px 10px', minHeight: '44px' }}
+                      >
+                        <RefreshCw size={12} aria-hidden="true" />
+                        {logStatus?.error ? 'Retry receipt lookup'
+                          : allHistorySearched ? 'Retry full receipt history'
+                          : 'Continue receipt history'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Wrong chain — pay prompt */}
+          {isWrongChain && myIndex !== -1 && !myPaidState && (
+            <div className="alert-warn" role="alert">
+              <AlertCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
+              <span className="flex-1">Switch to Arc Testnet to pay.</span>
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ minHeight: '44px', padding: '4px 12px', fontSize: '13px', flexShrink: 0 }}
+                onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
+                disabled={isSwitching}
+                aria-busy={isSwitching}
+              >
+                {isSwitching ? 'Switching…' : 'Switch'}
               </button>
             </div>
           )}
+          {isWrongChain && myIndex !== -1 && !myPaidState && switchError && (
+            <p role="alert" className="text-sm" style={{ color: 'var(--danger)' }}>
+              {networkSwitchErrorMessage(switchError)}
+            </p>
+          )}
 
-          {/* Pay CTA (only if I'm a listed, unpaid payer on the right chain) */}
+          {/* Pay CTA */}
           {isConnected && myIndex !== -1 && !myPaidState && !isWrongChain && (
-            <div className="mt-4 space-y-3">
-              {/* Write error */}
+            <div className="card p-5 space-y-3">
+              <h2 className="text-base font-semibold" style={{ color: 'var(--ink)' }}>Your payment</h2>
+
               {isCurrentPayment && (writeError || confirmationError || receiptData?.status === 'reverted') && (
-                <div className="rounded-xl px-3.5 py-2.5 flex items-center gap-2" style={{ background: '#fce8ec' }}>
-                  <AlertCircle size={14} style={{ color: 'var(--danger)', flexShrink: 0 }} />
-                  <span className="text-xs" style={{ color: 'var(--danger)' }}>
-                    {receiptData?.status === 'reverted' ? 'Transaction reverted. No payment was recorded.' : parseOnchainError(writeError ?? confirmationError)}
+                <div className="alert-danger" role="alert">
+                  <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>
+                    {receiptData?.status === 'reverted'
+                      ? 'Transaction reverted. No payment was recorded.'
+                      : parseOnchainError(writeError ?? confirmationError)}
                   </span>
                 </div>
               )}
+
               {isCurrentPayment && replacementNotice && (
-                <p className="text-xs px-1" style={{ color: 'var(--muted)' }}>{replacementNotice}</p>
+                <p className="text-xs" style={{ color: 'var(--muted)' }}>{replacementNotice}</p>
               )}
 
-              {/* Pending / confirming status */}
               {(isPending || isConfirming) && (
-                <div
-                  className="rounded-xl px-3.5 py-2.5 flex items-center gap-2"
-                  style={{ background: 'var(--surface-muted)' }}
-                >
-                  <div
-                    className="w-3.5 h-3.5 border-2 rounded-full animate-spin"
-                    style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
-                  />
-                  <span className="text-xs" style={{ color: 'var(--ink-2)' }}>
+                <div className="alert-info" aria-live="polite">
+                  <div className="spinner" style={{ width: '14px', height: '14px', marginTop: '1px' }} aria-hidden="true" />
+                  <span className="flex-1 text-sm">
                     {isCurrentPayment
                       ? isPending ? 'Waiting for wallet confirmation…' : 'Confirming on chain…'
-                      : `A payment from ${fmtAddress(paymentContext?.payer ?? '')} is still in progress. Wait for it before submitting another payment.`}
+                      : `A payment from ${fmtAddress(paymentContext?.payer ?? '')} is still in progress.`}
                   </span>
                   {pendingTxUrl && (
-                    <a
-                      href={pendingTxUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ml-auto flex items-center gap-1 text-xs"
-                      style={{ color: 'var(--accent)' }}
-                    >
-                      <ExternalLink size={11} />
+                    <a href={pendingTxUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs shrink-0"
+                      style={{ color: 'var(--accent-hover)' }}
+                      aria-label="View pending transaction on explorer">
+                      <ExternalLink size={12} aria-hidden="true" />
                     </a>
                   )}
                 </div>
               )}
 
-              {/* Confirmed payment banner — only shown when isConfirmedPayment
-                  is true: receipt.status==='success' AND the SharePaid event
-                  for this bill/payer was decoded and stored in receiptHashes.
-                  A mined cancel/replacement that lacks a matching SharePaid
-                  will not set isConfirmedPayment and falls through to the
-                  Pay button so the user can retry. */}
               {isConfirmedPayment && receiptData && (
-                <div
-                  className="rounded-xl px-3.5 py-2.5 flex items-center gap-2"
-                  style={{ background: '#edf7f1' }}
-                >
-                  <CheckCircle2 size={14} style={{ color: 'var(--success)', flexShrink: 0 }} />
-                  <span className="text-xs" style={{ color: '#155f39' }}>Payment confirmed!</span>
+                <div className="alert-success">
+                  <CheckCircle2 size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
+                  <span className="flex-1 font-medium">Payment confirmed!</span>
                   <a
                     href={`${chain.explorerBase}/tx/${receiptData.transactionHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-auto flex items-center gap-1 text-xs font-600"
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm font-semibold shrink-0"
                     style={{ color: 'var(--success)' }}
                   >
-                    Explorer <ExternalLink size={11} />
+                    View receipt <ExternalLink size={12} aria-hidden="true" />
                   </a>
                 </div>
               )}
 
-              {/* Pay button: shown when not in-flight and not a confirmed payment.
-                  !isConfirmedPayment (not !isSuccess) means a mined cancel
-                  restores the button so the user can retry. */}
               {!isPending && !isConfirming && !isConfirmedPayment && (
                 <button
+                  type="button"
                   onClick={handlePay}
-                  className="w-full rounded-xl py-3 text-sm font-600 transition-colors"
-                  style={{ background: 'var(--accent)', color: '#fff' }}
+                  className="btn-primary"
                 >
                   Pay {shareDisplay} USDC
                 </button>
@@ -743,25 +719,16 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
             </div>
           )}
 
-          {/* Not connected prompt */}
-          {!isConnected && totalPaid < payers.length && (
-            <div
-              className="rounded-xl px-4 py-3 mt-4 flex items-center gap-3"
-              style={{ background: 'var(--surface-muted)', border: '1px solid var(--border-strong)' }}
-            >
-              <span className="text-sm" style={{ color: 'var(--muted)' }}>Connect a wallet to pay your share.</span>
+          {/* Not connected */}
+          {!isConnected && !isSettled && (
+            <div className="alert-info">
+              <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0 }} />
+              <span className="text-sm" style={{ color: 'var(--ink-2)' }}>
+                Connect a wallet using the button in the header to pay your share.
+              </span>
             </div>
           )}
-          {totalPaid === payers.length && (
-            <div
-              className="rounded-xl px-4 py-3 mt-4 flex items-center gap-2"
-              style={{ background: '#edf7f1', border: '1px solid #cce5d5' }}
-            >
-              <CheckCircle2 size={15} style={{ color: 'var(--success)', flexShrink: 0 }} />
-              <span className="text-sm" style={{ color: '#155f39' }}>Bill settled. Everyone has paid their share.</span>
-            </div>
-          )}
-        </>
+        </div>
       )}
     </div>
   )

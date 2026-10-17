@@ -1,19 +1,19 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi'
 import { decodeEventLog } from 'viem'
-import { WalletButton } from '@/wallet-ui'
-import { PlusCircle, Trash2, ExternalLink, CheckCircle, AlertCircle } from 'lucide-react'
+import { ExternalLink, CheckCircle, AlertCircle, Plus, Trash2, Info } from 'lucide-react'
 import { SPLIT_RECEIPT_ABI, SPLIT_RECEIPT_ADDRESS, ARC_TESTNET_CHAIN_ID } from '../splitReceiptContract'
 import { requireChain } from '@/onchain-facts'
-import { parseUsdcToNative, validateUsdcInput } from '../usdcFormat'
+import { parseUsdcToNative, fmtNativeUsdc, validateUsdcInput } from '../usdcFormat'
 import { applyCreationReplacement, confirmBillCreation, type BillCreatedLog, type CreateBillSubmission } from '../createBillReceipt'
+import { networkSwitchErrorMessage } from '../wallet-ui'
 
 const chain = requireChain(ARC_TESTNET_CHAIN_ID)
 
 function parseOnchainError(error: unknown): string {
   const msg = (error as Error)?.message?.toLowerCase() ?? ''
   if (msg.includes('user rejected') || msg.includes('denied')) return 'Transaction cancelled.'
-  if (msg.includes('titletoolong')) return 'Title exceeds 80 characters.'
+  if (msg.includes('titletoolong')) return 'Title exceeds 80 UTF-8 bytes.'
   if (msg.includes('zerorecipient')) return 'Recipient address cannot be zero.'
   if (msg.includes('invalidpayercount')) return 'Add 2 to 5 unique payer addresses.'
   if (msg.includes('zeropayer')) return 'Payer address cannot be zero.'
@@ -24,17 +24,30 @@ function parseOnchainError(error: unknown): string {
   return 'Something went wrong. Please try again.'
 }
 
+/** Derive total from share × payer count using bigint. Returns null if share is invalid/empty. */
+function derivePreview(shareText: string, payerCount: number): { share: bigint; total: bigint } | null {
+  if (!shareText.trim()) return null
+  try {
+    const shareWei = parseUsdcToNative(shareText.trim())
+    if (shareWei <= 0n) return null
+    return { share: shareWei, total: shareWei * BigInt(payerCount) }
+  } catch {
+    return null
+  }
+}
+
 interface CreateBillProps {
   onBillCreated: (billId: bigint) => void
 }
 
 export default function CreateBill({ onBillCreated }: CreateBillProps) {
   const { address, chainId, isConnected } = useAccount()
-  const { switchChain } = useSwitchChain()
+  const { switchChain, isPending: isSwitching, error: switchError } = useSwitchChain()
   const { writeContract, data: txHash, isPending, error: writeError, reset } = useWriteContract()
   const [receiptError, setReceiptError] = useState('')
   const submitted = useRef<CreateBillSubmission | null>(null)
   const handled = useRef<string | null>(null)
+
   const { isLoading: isConfirming, isSuccess, data: receipt, error: waitError } = useWaitForTransactionReceipt({
     hash: txHash,
     chainId: ARC_TESTNET_CHAIN_ID,
@@ -46,7 +59,7 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
         replacedHash: replacement.replacedTransaction.hash,
         minedHash: replacement.transactionReceipt.transactionHash,
       })
-      if (next === request) return // A callback from a previous request.
+      if (next === request) return
       submitted.current = next
       if (next.invalidated) {
         setReceiptError(next.invalidated === 'cancelled'
@@ -65,17 +78,12 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
   const isWrongChain = isConnected && chainId !== ARC_TESTNET_CHAIN_ID
   const isContractDeployed = SPLIT_RECEIPT_ADDRESS.length > 2
 
-  const addPayer = () => {
-    if (payers.length < 5) setPayers(p => [...p, ''])
-  }
+  // Derived preview (pure bigint, no floating-point)
+  const preview = derivePreview(share, payers.length)
 
-  const removePayer = (i: number) => {
-    if (payers.length > 2) setPayers(p => p.filter((_, idx) => idx !== i))
-  }
-
-  const updatePayer = (i: number, val: string) => {
-    setPayers(p => p.map((a, idx) => idx === i ? val.trim() : a))
-  }
+  const addPayer = () => { if (payers.length < 5) setPayers(p => [...p, '']) }
+  const removePayer = (i: number) => { if (payers.length > 2) setPayers(p => p.filter((_, idx) => idx !== i)) }
+  const updatePayer = (i: number, val: string) => { setPayers(p => p.map((a, idx) => idx === i ? val.trim() : a)) }
 
   const validate = useCallback((): boolean => {
     setValidationError('')
@@ -101,16 +109,13 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
     setReceiptError('')
     handled.current = null
     let shareWei: bigint
-    try {
-      shareWei = parseUsdcToNative(share)
-    } catch (e) {
-      setValidationError((e as Error).message)
-      return
-    }
+    try { shareWei = parseUsdcToNative(share) } catch (e) { setValidationError((e as Error).message); return }
     const request: CreateBillSubmission = {
       chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS,
       creator: address.toLowerCase(),
-      title: title.trim(), recipient: recipient.toLowerCase(), payers: payers.map(p => p.toLowerCase()), share: shareWei }
+      title: title.trim(), recipient: recipient.toLowerCase(),
+      payers: payers.map(p => p.toLowerCase()), share: shareWei,
+    }
     submitted.current = request
     writeContract({
       address: SPLIT_RECEIPT_ADDRESS,
@@ -129,20 +134,13 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
     for (const log of receipt.logs) {
       if (log.address.toLowerCase() !== request.contract.toLowerCase()) continue
       try {
-        const decoded = decodeEventLog({
-          abi: SPLIT_RECEIPT_ABI,
-          data: log.data,
-          topics: log.topics,
-          eventName: 'BillCreated',
-        })
+        const decoded = decodeEventLog({ abi: SPLIT_RECEIPT_ABI, data: log.data, topics: log.topics, eventName: 'BillCreated' })
         decodedLogs.push({ address: log.address, args: decoded.args })
-      } catch {
-        // not our log
-      }
+      } catch { /* not our log */ }
     }
-    const result = confirmBillCreation(request, {
-      status: receipt.status, transactionHash: receipt.transactionHash, logs: decodedLogs,
-    }, { receiptChainId: ARC_TESTNET_CHAIN_ID, connectedAddress: address, connectedChainId: chainId })
+    const result = confirmBillCreation(request,
+      { status: receipt.status, transactionHash: receipt.transactionHash, logs: decodedLogs },
+      { receiptChainId: ARC_TESTNET_CHAIN_ID, connectedAddress: address, connectedChainId: chainId })
     if (result.kind === 'stale') return
     if (result.kind === 'confirmed') {
       handled.current = result.transactionHash
@@ -150,7 +148,7 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
       onBillCreated(result.billId)
       return
     }
-    const messages = {
+    const messages: Record<string, string> = {
       reverted: 'Transaction reverted. No bill was created.',
       cancelled: 'Transaction cancelled in your wallet. No bill was created by this request.',
       replaced: 'Transaction was replaced. Check your wallet before trying again.',
@@ -159,251 +157,346 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
       'missing-event': 'The mined receipt did not contain the expected bill event.',
       'ambiguous-event': 'The receipt contains more than one matching bill. Inspect it on the explorer before trying again.',
     }
-    setReceiptError(messages[result.kind])
+    setReceiptError(messages[result.kind] ?? 'Unknown error.')
   }, [isSuccess, receipt, address, chainId, onBillCreated])
 
-  const txUrl = (receipt?.transactionHash || txHash) ? `${chain.explorerBase}/tx/${receipt?.transactionHash || txHash}` : null
+  const txUrl = (receipt?.transactionHash || txHash)
+    ? `${chain.explorerBase}/tx/${receipt?.transactionHash || txHash}`
+    : null
+
+  const titleBytes = new TextEncoder().encode(title.trim()).length
+  const isBusy = isPending || isConfirming
 
   return (
-    <div className="w-full max-w-md mx-auto px-4 py-8">
-      {/* Header */}
+    <div>
+      {/* ── Page heading ─────────────────────────────────────────────── */}
       <div className="mb-8">
-        <h1 className="display text-3xl font-700 tracking-tight mb-1" style={{ color: 'var(--ink)' }}>
-          SplitReceipt
+        <h1 className="text-3xl font-bold tracking-tight mb-1" style={{ color: 'var(--ink)' }}>
+          Create a shared bill
         </h1>
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>
-          Split a shared expense on Arc — no reconciliation needed.
-        </p>
+        <p style={{ color: 'var(--muted)' }}>One link. Equal shares. Verifiable payments.</p>
       </div>
 
-      {/* Connect wallet */}
-      {!isConnected && (
-        <div
-          className="rounded-2xl p-5 mb-6 border"
-          style={{ background: 'var(--surface-strong)', borderColor: 'var(--border)' }}
-        >
-          <p className="text-sm mb-4" style={{ color: 'var(--ink-2)' }}>
-            Connect a wallet to create a bill.
-          </p>
-          <WalletButton />
-        </div>
-      )}
-
-      {/* Wrong chain banner */}
-      {isWrongChain && (
-        <div
-          className="rounded-xl px-4 py-3 mb-5 flex items-center gap-3"
-          style={{ background: '#fff3cd', border: '1px solid #f0a500' }}
-        >
-          <AlertCircle size={16} style={{ color: '#a0700a', flexShrink: 0 }} />
-          <span className="text-sm" style={{ color: '#6b4d07' }}>
-            Switch to Arc Testnet to create a bill.
-          </span>
-          <button
-            onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
-            className="ml-auto text-sm font-600 rounded-lg px-3 py-1"
-            style={{ background: 'var(--accent)', color: '#fff' }}
-          >
-            Switch
-          </button>
-        </div>
-      )}
-
-      {/* Not deployed yet */}
+      {/* ── Not deployed banner ──────────────────────────────────────── */}
       {!isContractDeployed && (
-        <div
-          className="rounded-xl px-4 py-3 mb-5"
-          style={{ background: '#fef9ec', border: '1px solid #f59e0b' }}
-        >
-          <p className="text-sm" style={{ color: '#78450a' }}>
-            Contract not yet deployed. Deploy SplitReceipt to Arc Testnet first.
-          </p>
+        <div className="alert-warn mb-6" role="alert">
+          <AlertCircle size={15} aria-hidden="true" />
+          <span>Contract not yet deployed. Deploy SplitReceipt to Arc Testnet first.</span>
         </div>
       )}
 
-      {/* Form */}
-      <div
-        className="rounded-2xl border p-5 space-y-4"
-        style={{ background: 'var(--surface-strong)', borderColor: 'var(--border)' }}
-      >
-        <h2 className="display text-base font-600" style={{ color: 'var(--ink)' }}>Create a bill</h2>
+      {/* ── 2-column desktop layout ──────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
 
-        {/* Title */}
-        <div>
-          <label className="block text-xs font-600 mb-1.5 tracking-wide uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>
-            Bill title
-          </label>
-          <input
-            type="text"
-            maxLength={80}
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="Dinner at Nobu"
-            className="w-full rounded-xl px-3.5 py-2.5 text-sm border outline-none transition-colors"
-            style={{ background: 'var(--surface-muted)', borderColor: 'var(--border)', color: 'var(--ink)' }}
-          />
-          <div className="text-right text-xs mt-1" style={{ color: 'var(--subtle)' }}>
-            {new TextEncoder().encode(title.trim()).length}/80 UTF-8 bytes
+        {/* ── Left: form card ──────────────────────────────────────────── */}
+        <div className="card p-6 space-y-5">
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--ink)' }}>Bill details</h2>
+
+          {/* Wrong chain banner */}
+          {isWrongChain && (
+            <div className="alert-warn" role="alert">
+              <AlertCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
+              <span className="flex-1">Switch to Arc Testnet to create a bill.</span>
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ minHeight: '44px', padding: '4px 12px', fontSize: '13px' }}
+                onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
+                disabled={isSwitching}
+                aria-busy={isSwitching}
+              >
+                {isSwitching ? 'Switching…' : 'Switch'}
+              </button>
+            </div>
+          )}
+          {isWrongChain && switchError && (
+            <p role="alert" className="text-sm" style={{ color: 'var(--danger)' }}>
+              {networkSwitchErrorMessage(switchError)}
+            </p>
+          )}
+
+          {/* Bill name */}
+          <div>
+            <label htmlFor="bill-title" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--ink-2)' }}>
+              Bill name
+            </label>
+            <input
+              id="bill-title"
+              type="text"
+              className="sr-input"
+              placeholder="Team dinner"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              aria-describedby="title-hint"
+            />
+            <p id="title-hint" className="text-xs mt-1 text-right" style={{ color: titleBytes > 72 ? 'var(--danger)' : 'var(--subtle)' }}>
+              {titleBytes}/80 UTF-8 bytes
+            </p>
           </div>
-        </div>
 
-        {/* Recipient */}
-        <div>
-          <label className="block text-xs font-600 mb-1.5 tracking-wide uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>
-            Recipient address
-          </label>
-          <input
-            type="text"
-            value={recipient}
-            onChange={e => setRecipient(e.target.value.trim())}
-            placeholder="0x…"
-            className="mono w-full rounded-xl px-3.5 py-2.5 text-xs border outline-none"
-            style={{ background: 'var(--surface-muted)', borderColor: 'var(--border)', color: 'var(--ink)' }}
-          />
-          {isConnected && address && (
+          {/* Recipient */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label htmlFor="recipient" className="text-sm font-medium" style={{ color: 'var(--ink-2)' }}>
+                Recipient wallet
+              </label>
+              {isConnected && address && (
+                <button
+                  type="button"
+                  className="text-xs font-medium min-h-[44px] px-2"
+                  style={{ color: 'var(--accent-hover)' }}
+                  onClick={() => setRecipient(address)}
+                >
+                  Use my wallet
+                </button>
+              )}
+            </div>
+            <input
+              id="recipient"
+              type="text"
+              className="sr-input sr-mono"
+              style={{ fontSize: '13px' }}
+              placeholder="0x…"
+              value={recipient}
+              onChange={e => setRecipient(e.target.value.trim())}
+              aria-describedby="recipient-hint"
+            />
+            <p id="recipient-hint" className="sr-only">
+              The Ethereum address that will receive all payments immediately.
+            </p>
+          </div>
+
+          {/* Amount per person */}
+          <div>
+            <label htmlFor="share-amount" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--ink-2)' }}>
+              Amount per person
+            </label>
+            <div className="relative">
+              <input
+                id="share-amount"
+                type="text"
+                inputMode="decimal"
+                className="sr-input"
+                style={{ paddingRight: '56px' }}
+                placeholder="0.00"
+                value={share}
+                onChange={e => setShare(e.target.value)}
+                aria-describedby="share-hint"
+              />
+              <span
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none"
+                style={{ color: 'var(--muted)' }}
+              >
+                USDC
+              </span>
+            </div>
+            <p id="share-hint" className="text-xs mt-1" style={{ color: 'var(--subtle)' }}>
+              Up to 6 decimal places. Each payer sends this amount directly to the recipient.
+            </p>
+          </div>
+
+          {/* People paying */}
+          <div>
+            <p className="text-sm font-medium mb-0.5" style={{ color: 'var(--ink-2)' }}>
+              People paying
+            </p>
+            <p className="text-xs mb-3" style={{ color: 'var(--subtle)' }}>
+              2–5 unique wallets · Equal shares
+            </p>
+            <div className="space-y-2">
+              {payers.map((p, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="payer-badge" aria-hidden="true">{i + 1}</span>
+                  <input
+                    type="text"
+                    id={`payer-${i}`}
+                    className="sr-input sr-mono flex-1"
+                    style={{ fontSize: '13px' }}
+                    placeholder="0x…"
+                    value={p}
+                    onChange={e => updatePayer(i, e.target.value)}
+                    aria-label={`Payer ${i + 1} wallet address`}
+                  />
+                  {payers.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => removePayer(i)}
+                      className="touch-target flex items-center justify-center rounded-lg"
+                      style={{ color: 'var(--danger)', flexShrink: 0, width: '36px', height: '36px' }}
+                      aria-label={`Remove payer ${i + 1}`}
+                    >
+                      <Trash2 size={15} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {payers.length < 5 && (
+              <button
+                type="button"
+                onClick={addPayer}
+                className="btn-ghost mt-3"
+                style={{ width: 'auto' }}
+              >
+                <Plus size={14} aria-hidden="true" />
+                Add payer
+              </button>
+            )}
+          </div>
+
+          {/* Validation / write / wait errors */}
+          {validationError && (
+            <div className="alert-danger" role="alert">
+              <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }} />
+              <span>{validationError}</span>
+            </div>
+          )}
+          {writeError && !validationError && (
+            <div className="alert-danger" role="alert">
+              <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }} />
+              <span>{parseOnchainError(writeError)}</span>
+            </div>
+          )}
+          {(receiptError || waitError) && !validationError && (
+            <div className="alert-danger" role="alert">
+              <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }} />
+              <span>{receiptError || parseOnchainError(waitError)}</span>
+            </div>
+          )}
+
+          {/* Pending / confirming */}
+          {isBusy && (
+            <div className="alert-info" aria-live="polite">
+              <div className="spinner" style={{ width: '14px', height: '14px', marginTop: '1px' }} aria-hidden="true" />
+              <span>{isPending ? 'Waiting for wallet confirmation…' : 'Confirming on chain…'}</span>
+            </div>
+          )}
+
+          {/* Success */}
+          {isSuccess && receipt?.status === 'success' && handled.current === receipt.transactionHash && txUrl && (
+            <div className="alert-success">
+              <CheckCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
+              <span className="flex-1">Bill created!</span>
+              <a href={txUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 text-sm font-semibold"
+                style={{ color: 'var(--success)' }}>
+                Explorer <ExternalLink size={12} aria-hidden="true" />
+              </a>
+            </div>
+          )}
+
+          {/* CTA */}
+          {!isConnected ? (
+            <div className="space-y-3">
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                Connect a wallet using the button in the header to create a bill.
+              </p>
+              <div
+                className="rounded-xl border-2 border-dashed flex items-center justify-center py-3 text-sm font-medium"
+                style={{ borderColor: 'var(--border-strong)', color: 'var(--subtle)' }}
+                aria-disabled="true"
+              >
+                Connect wallet to continue
+              </div>
+            </div>
+          ) : (
             <button
-              onClick={() => setRecipient(address)}
-              className="mt-1.5 text-xs font-500"
-              style={{ color: 'var(--accent-hover)' }}
+              type="button"
+              onClick={isWrongChain ? () => switchChain({ chainId: ARC_TESTNET_CHAIN_ID }) : handleCreate}
+              disabled={isPending || isConfirming || isSwitching || !isContractDeployed}
+              className="btn-primary"
+              aria-busy={isBusy || isSwitching}
             >
-              Use my wallet
+              {isWrongChain ? isSwitching ? 'Switching network…' : 'Switch to Arc Testnet'
+                : isPending ? 'Confirm in wallet…'
+                : isConfirming ? 'Confirming…'
+                : 'Create bill'}
             </button>
           )}
-        </div>
 
-        {/* Share amount */}
-        <div>
-          <label className="block text-xs font-600 mb-1.5 tracking-wide uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>
-            Share per payer (USDC)
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={share}
-              onChange={e => setShare(e.target.value)}
-              placeholder="10.00"
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm border outline-none tabular-nums"
-              style={{ background: 'var(--surface-muted)', borderColor: 'var(--border)', color: 'var(--ink)' }}
-            />
-            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-600" style={{ color: 'var(--muted)' }}>USDC</span>
-          </div>
-          <p className="text-xs mt-1" style={{ color: 'var(--subtle)' }}>
-            Up to 6 decimal places, e.g. 0.000001
+          {/* Sub-caption */}
+          <p className="text-xs text-center" style={{ color: 'var(--subtle)' }}>
+            {isConnected && !isWrongChain && !isBusy
+              ? 'Wallet confirmation required'
+              : '\u00a0'}
           </p>
         </div>
 
-        {/* Payers */}
-        <div>
-          <label className="block text-xs font-600 mb-1.5 tracking-wide uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.08em' }}>
-            Payers ({payers.length}/5)
-          </label>
-          <div className="space-y-2">
-            {payers.map((p, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <input
-                  type="text"
-                  value={p}
-                  onChange={e => updatePayer(i, e.target.value)}
-                  placeholder={`Payer ${i + 1} — 0x…`}
-                  className="mono flex-1 rounded-xl px-3.5 py-2.5 text-xs border outline-none"
-                  style={{ background: 'var(--surface-muted)', borderColor: 'var(--border)', color: 'var(--ink)' }}
-                />
-                {payers.length > 2 && (
-                  <button
-                    onClick={() => removePayer(i)}
-                    className="p-2 rounded-lg"
-                    style={{ color: 'var(--danger)' }}
-                    aria-label="Remove payer"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                )}
+        {/* ── Right: preview + how-it-works ─────────────────────────── */}
+        <div className="space-y-4">
+
+          {/* Bill preview */}
+          <div className="card p-5">
+            <h2 className="text-base font-semibold mb-4" style={{ color: 'var(--ink)' }}>Bill preview</h2>
+            <dl className="space-y-3" aria-live="polite">
+              <div className="flex items-center justify-between">
+                <dt className="text-sm" style={{ color: 'var(--muted)' }}>People</dt>
+                <dd className="text-sm font-semibold tabular-nums text-right break-all min-w-0 ml-3" style={{ color: 'var(--ink)' }}>
+                  {payers.length}
+                </dd>
               </div>
-            ))}
+              <div className="flex items-center justify-between">
+                <dt className="text-sm" style={{ color: 'var(--muted)' }}>Each pays</dt>
+                <dd className="text-sm font-semibold tabular-nums text-right break-all min-w-0 ml-3" style={{ color: 'var(--ink)' }}>
+                  {preview ? `${fmtNativeUsdc(preview.share)} USDC` : <span style={{ color: 'var(--subtle)' }}>—</span>}
+                </dd>
+              </div>
+              <div
+                className="flex items-center justify-between pt-3"
+                style={{ borderTop: '1px solid var(--border)' }}
+              >
+                <dt className="text-sm font-medium" style={{ color: 'var(--ink-2)' }}>Total to recipient</dt>
+                <dd className="text-base font-bold tabular-nums text-right break-all min-w-0 ml-3" style={{ color: 'var(--ink)' }}>
+                  {preview ? `${fmtNativeUsdc(preview.total)} USDC` : <span style={{ color: 'var(--subtle)', fontWeight: 400 }}>—</span>}
+                </dd>
+              </div>
+            </dl>
           </div>
-          {payers.length < 5 && (
-            <button
-              onClick={addPayer}
-              className="mt-2.5 flex items-center gap-1.5 text-xs font-600"
-              style={{ color: 'var(--accent-hover)' }}
+
+          {/* How it works */}
+          <div className="card p-5">
+            <h2 className="text-base font-semibold mb-4" style={{ color: 'var(--ink)' }}>How it works</h2>
+            <ol className="space-y-4" aria-label="Steps">
+              {[
+                { label: 'Create bill', desc: 'Add a name, amount, recipient and the people paying.' },
+                { label: 'Share link', desc: 'Send the generated link to your teammates.' },
+                { label: 'Verify payments', desc: 'Each person pays their equal share in USDC. Payments are verifiable onchain.' },
+              ].map((step, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <span className="step-circle mt-0.5" aria-hidden="true">{i + 1}</span>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>{step.label}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{step.desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <div
+              className="mt-5 flex items-start gap-3 rounded-xl p-3"
+              style={{ background: 'var(--success-bg)', border: '1px solid var(--success-border)' }}
             >
-              <PlusCircle size={14} />
-              Add payer
-            </button>
-          )}
-        </div>
-
-        {/* Validation error */}
-        {validationError && (
-          <div className="rounded-xl px-3.5 py-2.5 flex items-center gap-2" style={{ background: '#fce8ec' }}>
-            <AlertCircle size={14} style={{ color: 'var(--danger)', flexShrink: 0 }} />
-            <span className="text-xs" style={{ color: 'var(--danger)' }}>{validationError}</span>
+              <CheckCircle size={16} style={{ color: 'var(--success)', flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: 'var(--success)' }}>Shares go directly to the recipient.</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--success)' }}>
+                  Each person sends their share in USDC to the recipient wallet.
+                </p>
+              </div>
+            </div>
           </div>
-        )}
 
-        {/* Write error */}
-        {writeError && (
-          <div className="rounded-xl px-3.5 py-2.5 flex items-center gap-2" style={{ background: '#fce8ec' }}>
-            <AlertCircle size={14} style={{ color: 'var(--danger)', flexShrink: 0 }} />
-            <span className="text-xs" style={{ color: 'var(--danger)' }}>{parseOnchainError(writeError)}</span>
-          </div>
-        )}
-
-        {/* Pending / success */}
-        {(isPending || isConfirming) && (
-          <div className="rounded-xl px-3.5 py-2.5 flex items-center gap-2" style={{ background: 'var(--surface-muted)' }}>
-            <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
-            <span className="text-xs" style={{ color: 'var(--ink-2)' }}>
-              {isPending ? 'Waiting for wallet confirmation…' : 'Confirming on chain…'}
+          {/* Testnet clarification */}
+          <div
+            className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs"
+            style={{ background: 'var(--surface-info)', color: 'var(--accent-hover)', border: '1px solid rgba(16,97,166,0.18)' }}
+          >
+            <Info size={13} style={{ flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
+            <span>
+              Arc Testnet only. USDC here has no real-world value.
             </span>
           </div>
-        )}
-
-        {(receiptError || waitError) && <p role="alert" className="text-sm" style={{ color: 'var(--danger)' }}>
-          {receiptError || parseOnchainError(waitError)}
-        </p>}
-
-        {isSuccess && receipt?.status === 'success' && handled.current === receipt.transactionHash && txUrl && (
-          <div className="rounded-xl px-3.5 py-2.5 flex items-center gap-2" style={{ background: '#edf7f1' }}>
-            <CheckCircle size={14} style={{ color: 'var(--success)', flexShrink: 0 }} />
-            <span className="text-xs" style={{ color: '#155f39' }}>Bill created!</span>
-            <a href={txUrl} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 text-xs font-600" style={{ color: 'var(--success)' }}>
-              Explorer <ExternalLink size={11} />
-            </a>
-          </div>
-        )}
-
-        {/* CTA */}
-        <button
-          onClick={isWrongChain
-            ? () => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })
-            : handleCreate}
-          disabled={!isConnected || isPending || isConfirming || !isContractDeployed}
-          className="w-full rounded-xl py-3 text-sm font-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: 'var(--accent)', color: '#fff' }}
-        >
-          {!isConnected
-            ? 'Connect wallet to continue'
-            : isWrongChain
-            ? 'Switch to Arc Testnet'
-            : isPending
-            ? 'Confirm in wallet…'
-            : isConfirming
-            ? 'Confirming…'
-            : 'Create bill'}
-        </button>
-      </div>
-
-      {/* Connected wallet footer */}
-      {isConnected && address && (
-        <div className="mt-4 flex items-center justify-between px-1">
-          <span className="mono text-xs" style={{ color: 'var(--subtle)' }}>
-            {address.slice(0, 6)}…{address.slice(-4)}
-          </span>
-          <WalletButton />
         </div>
-      )}
+      </div>
     </div>
   )
 }

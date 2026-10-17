@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-17",
+  "scope": "UI refinement and exact source synchronization to the existing Arc Studio project; testnet only",
+  "studioProject": "https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62",
+  "studioArchiveSha256": "336844d1c6cd173e827858ceb47e4cdeeb3601e44e4f6580b1ea91158e32a886",
+  "studioArchiveBytes": 3541106,
+  "exactSynchronizedFiles": {
+    "src/App.tsx": {
+      "expected": "369fcd1e233d1ec71a31099e3101e3325d38156694a0bcafb7d92de750694442",
+      "actual": "369fcd1e233d1ec71a31099e3101e3325d38156694a0bcafb7d92de750694442",
+      "matches": true
+    },
+    "src/components/CreateBill.tsx": {
+      "expected": "657b21d3064c65d4dcec59799fd773c81d8f9715aeca8e45b48537b0a911a6e2",
+      "actual": "657b21d3064c65d4dcec59799fd773c81d8f9715aeca8e45b48537b0a911a6e2",
+      "matches": true
+    },
+    "src/components/BillDetails.tsx": {
+      "expected": "0dfd78ffbc3fb3bbe31ae5fc8746eb0a2223016b74469c6839dd8ed72d15401d",
+      "actual": "0dfd78ffbc3fb3bbe31ae5fc8746eb0a2223016b74469c6839dd8ed72d15401d",
+      "matches": true
+    },
+    "src/index.css": {
+      "expected": "b12a1ce4d874bdf57ee272645783fe6622d19f934767fc31e978c18fb81f48f1",
+      "actual": "b12a1ce4d874bdf57ee272645783fe6622d19f934767fc31e978c18fb81f48f1",
+      "matches": true
+    },
+    "src/wallet-ui.tsx": {
+      "expected": "864c63dbbb0d82a220d6fd6a61ea51b90bc6bad87289b1066fc88800efbdd65a",
+      "actual": "864c63dbbb0d82a220d6fd6a61ea51b90bc6bad87289b1066fc88800efbdd65a",
+      "matches": true
+    },
+    "src/onchain-facts.ts": {
+      "expected": "b4c45994e26e377923c5f54e706709449435af051ce89f493027f111cdf2f070",
+      "actual": "b4c45994e26e377923c5f54e706709449435af051ce89f493027f111cdf2f070",
+      "matches": true
+    }
+  },
+  "protectedPublicSource": {
+    "src/config.ts": {
+      "expected": "366034d0c46e23e9b4aa89ee392bc3555ccc813d7f28c111b225abbba0b66a5c",
+      "actual": "366034d0c46e23e9b4aa89ee392bc3555ccc813d7f28c111b225abbba0b66a5c",
+      "matches": true
+    },
+    "src/onchain-facts.ts": {
+      "expected": "b4c45994e26e377923c5f54e706709449435af051ce89f493027f111cdf2f070",
+      "actual": "b4c45994e26e377923c5f54e706709449435af051ce89f493027f111cdf2f070",
+      "matches": true
+    },
+    "src/splitReceiptContract.ts": {
+      "expected": "bd1c7884db9630b528c61f0a1c6ba542b2e75c71b4d5856955e5c2483e7f8079",
+      "actual": "bd1c7884db9630b528c61f0a1c6ba542b2e75c71b4d5856955e5c2483e7f8079",
+      "matches": true
+    },
+    "src/usdcFormat.ts": {
+      "expected": "ec0bf64447ae8a1a0587488323d140cdc83d2924b1946fe46219e9b220c11cb9",
+      "actual": "ec0bf64447ae8a1a0587488323d140cdc83d2924b1946fe46219e9b220c11cb9",
+      "matches": true
+    },
+    "src/createBillReceipt.ts": {
+      "expected": "8046256838bde42a2eaaf9896b962604f7762eae39782bc296c4c0e2a3e2944a",
+      "actual": "8046256838bde42a2eaaf9896b962604f7762eae39782bc296c4c0e2a3e2944a",
+      "matches": true
+    },
+    "src/receiptHistory.ts": {
+      "expected": "d59754afab4e93aff51ec94cf1893f14308390f5b5295e7ea107460b49f1cc1e",
+      "actual": "d59754afab4e93aff51ec94cf1893f14308390f5b5295e7ea107460b49f1cc1e",
+      "matches": true
+    },
+    "contracts/SplitReceipt.sol": {
+      "expected": "df06d8d017fc9170f39eeb08d38f5f7f5dbcbd4b4e34a8542cc3eaa216d504c2",
+      "actual": "df06d8d017fc9170f39eeb08d38f5f7f5dbcbd4b4e34a8542cc3eaa216d504c2",
+      "matches": true
+    },
+    "tailwind.config.js": {
+      "expected": "96e72908328954920bc0840fa575f9114863576deb3cab9ec61951a3181650dd",
+      "actual": "96e72908328954920bc0840fa575f9114863576deb3cab9ec61951a3181650dd",
+      "matches": true
+    },
+    "tests/create-bill-receipt.test.ts": {
+      "expected": "39dda495b245ee8fb676c16666d71f1fc331624c44f89f4456013028889357f8",
+      "actual": "39dda495b245ee8fb676c16666d71f1fc331624c44f89f4456013028889357f8",
+      "matches": true
+    },
+    "tests/receipt-history.test.ts": {
+      "expected": "de93a4eebae3ced8b78535200c41cbaec179000fc22971f4db89359b94b5f84c",
+      "actual": "de93a4eebae3ced8b78535200c41cbaec179000fc22971f4db89359b94b5f84c",
+      "matches": true
+    },
+    "tests/usdc-format.test.ts": {
+      "expected": "596e6eaaa922113f7a86a30452013cfd01e544b468dc7ad731575e2a91c813c2",
+      "actual": "596e6eaaa922113f7a86a30452013cfd01e544b468dc7ad731575e2a91c813c2",
+      "matches": true
+    }
+  },
+  "studioHostAdaptations": {
+    "package.json": {
+      "unchangedFromPriorStudioExport": true
+    },
+    "vite.config.ts": {
+      "unchangedFromPriorStudioExport": true
+    }
+  },
+  "packageLockPresentInStudioExport": false,
+  "extraGeneratedHelpersPresent": {
+    "src/onchain-money.ts": false,
+    "src/onchain-wait.ts": false
+  },
+  "otherPublicSourceChanges": [
+    {
+      "path": "src/onchain-money.ts",
+      "status": "removed"
+    },
+    {
+      "path": "src/onchain-wait.ts",
+      "status": "removed"
+    }
+  ],
+  "actualPreviewObserved": [
+    "Desktop creation page",
+    "Mobile creation page"
+  ],
+  "validation": {
+    "typecheck": "passed",
+    "frontendTests": {
+      "passed": 16,
+      "failed": 0
+    },
+    "productionBuild": "passed; existing bundle-size warning remains",
+    "dependencyIsolation": "passed; no external filesystem links",
+    "newDependencies": false
+  },
+  "boundaries": [
+    "Generated images were design references, not live transaction evidence.",
+    "Five UI files were reviewed and refined locally, then synchronized to Studio; the strict Arc Testnet helper was restored.",
+    "No new mainnet or testnet transaction was executed during the UI synchronization.",
+    "The private source archive and recordings are not included in this public source artifact.",
+    "Real-wallet network-switch failure and other transaction branches were not re-exercised during the UI synchronization."
+  ]
+}
