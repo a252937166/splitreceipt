@@ -1,0 +1,104 @@
+{
+  "kind": "independent-read-only-final-bill-verification",
+  "checkedAt": "2026-10-17T12:21:08.045Z",
+  "chainId": 5042002,
+  "rpc": "https://rpc.testnet.arc.io",
+  "contract": "0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26",
+  "runtimeCodeHash": "0xbbd2f2b7c23a525b0cbb77c31d8b4a82b99797158bcfd7da6cd94c12b74b8074",
+  "billId": "2",
+  "bill": {
+    "title": "Browser wallet test - testnet only",
+    "recipient": "0x7c50fF360EE4Ee53097ADFb6D0a464c2E9F77336",
+    "payers": [
+      "0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74",
+      "0x92F6772880Bc6FFe9F8112E5F202bB7eC5428B6e"
+    ],
+    "shareNativeAtomic": "1000000000000000",
+    "paidStates": [
+      true,
+      true
+    ],
+    "paidCount": 2
+  },
+  "transactions": [
+    {
+      "kind": "creation",
+      "hash": "0x69c6209b9dd2f35de2a657879be66b1d76c1dd4f4f41bae6e32e2a8926aa1839",
+      "from": "0x3dc8bd7393c65c632ec6395ad6c7916a65662e74",
+      "to": "0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26",
+      "status": "success",
+      "blockNumber": "67668062",
+      "nonce": 1,
+      "valueNativeAtomic": "0",
+      "valueTestUSDC": "0",
+      "gasUsed": "213997",
+      "effectiveGasPrice": "25000000000",
+      "gasCostNativeAtomic": "5349925000000000",
+      "gasCostTestUSDC": "0.005349925",
+      "explorer": "https://explorer.testnet.arc.io/tx/0x69c6209b9dd2f35de2a657879be66b1d76c1dd4f4f41bae6e32e2a8926aa1839"
+    },
+    {
+      "kind": "metamask-payment",
+      "hash": "0xc1a18f3c1698d207ca6c247643175b0e1f958ea4719da4ccb5d5b751532a2b6a",
+      "from": "0x3dc8bd7393c65c632ec6395ad6c7916a65662e74",
+      "to": "0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26",
+      "status": "success",
+      "blockNumber": "67668252",
+      "nonce": 2,
+      "valueNativeAtomic": "1000000000000000",
+      "valueTestUSDC": "0.001",
+      "gasUsed": "68472",
+      "effectiveGasPrice": "25000000000",
+      "gasCostNativeAtomic": "1711800000000000",
+      "gasCostTestUSDC": "0.0017118",
+      "event": {
+        "billId": "2",
+        "payer": "0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74",
+        "amountNativeAtomic": "1000000000000000",
+        "transactionHash": "0xc1a18f3c1698d207ca6c247643175b0e1f958ea4719da4ccb5d5b751532a2b6a",
+        "logIndex": 20
+      },
+      "explorer": "https://explorer.testnet.arc.io/tx/0xc1a18f3c1698d207ca6c247643175b0e1f958ea4719da4ccb5d5b751532a2b6a"
+    },
+    {
+      "kind": "original-payer-a-payment",
+      "hash": "0x80d5b5c0c7d5941994eddd700587051d8f054c466a071afde5c7611ace315cb7",
+      "from": "0x92f6772880bc6ffe9f8112e5f202bb7ec5428b6e",
+      "to": "0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26",
+      "status": "success",
+      "blockNumber": "67668301",
+      "nonce": 1,
+      "valueNativeAtomic": "1000000000000000",
+      "valueTestUSDC": "0.001",
+      "gasUsed": "70865",
+      "effectiveGasPrice": "25000000000",
+      "gasCostNativeAtomic": "1771625000000000",
+      "gasCostTestUSDC": "0.001771625",
+      "event": {
+        "billId": "2",
+        "payer": "0x92F6772880Bc6FFe9F8112E5F202bB7eC5428B6e",
+        "amountNativeAtomic": "1000000000000000",
+        "transactionHash": "0x80d5b5c0c7d5941994eddd700587051d8f054c466a071afde5c7611ace315cb7",
+        "logIndex": 2
+      },
+      "explorer": "https://explorer.testnet.arc.io/tx/0x80d5b5c0c7d5941994eddd700587051d8f054c466a071afde5c7611ace315cb7"
+    }
+  ],
+  "totals": {
+    "transactionCount": 3,
+    "gasNativeAtomic": "8833350000000000",
+    "gasTestUSDC": "0.00883335",
+    "paidNativeAtomic": "2000000000000000",
+    "paidTestUSDC": "0.002",
+    "gasPlusSharesTestUSDC": "0.01083335"
+  },
+  "recipientBalanceProof": {
+    "beforeBlock": "67668061",
+    "afterBlock": "67668301",
+    "before": "136574450000000000",
+    "after": "138574450000000000",
+    "delta": "2000000000000000",
+    "deltaTestUSDC": "0.002"
+  },
+  "boundary": "Read-only public RPC proof. MetaMask connection/rejection/browser UI observations are captured separately. The original payer A payment was executed by root using private local testnet tooling, not by this verifier or a second browser wallet. No signing, broadcasting, private keys or raw signed transactions in this proof."
+}
