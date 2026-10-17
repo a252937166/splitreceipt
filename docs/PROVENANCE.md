@@ -6,7 +6,17 @@ The original SplitReceipt application and Solidity contract were generated and i
 
 An independent local deployment then used a fresh test-only wallet and the public Arc Testnet RPC. This produced the contract and example bill recorded in [arc-testnet.json](../deployments/arc-testnet.json). The recorded example has two `0.001` test-USDC payments. No mainnet wallet, mainnet API key or real USDC was used for that testnet run.
 
-This standalone repository preserves the Studio-origin contract and application while adding locally developed dependency isolation, receipt-history pagination, wallet handling, verification and static publication. The local project and the Studio workspace are distinct environments; a local revision is not automatically claimed to have been replayed in Studio.
+This standalone repository preserves the Studio-origin contract and application while adding locally developed dependency isolation, receipt-history pagination, wallet handling, verification and static publication. The final application refinements were synchronized back to Studio and checked through a new downloaded source archive, as recorded below.
+
+## Final Studio source readback
+
+On 2026-10-17, a fresh **Download Code** ZIP from Studio was saved and independently compared with the canonical working tree. The public [source-readback evidence](../tests/evidence/studio-source-readback-2026-10-17.json) records 22 synchronized paths: **20 were byte-identical**, including all synchronized application source and tests. The contract bytes also matched the canonical original Studio-authored contract.
+
+Two files have the documented Studio sandbox adaptations: `package.json` changes the development host to `0.0.0.0`; `vite.config.ts` uses that development host and adds `allowedHosts: true`. The canonical project retains `127.0.0.1`. These are the only differences among the 22 compared paths; this comparison does not cover every dependency or generated artifact in the archive.
+
+Archive SHA-256: `46e458e3125421abd5144b409c75e40dfb8aee7a98d284c57fc6582e673ccd69`. The ZIP is retained privately outside Git; only sanitized path hashes and the two configuration diffs are public.
+
+The Studio UI reported zero TypeScript errors, 16 passing tests and a successful build. A real Preview refresh was observed and recorded with the new testnet banner, public demo link and UTF-8 title-byte counter visible. The downloaded-file comparison establishes source persistence independently of that UI report. Historical contract deployment and mainnet scope remain as described separately below.
 
 ## Build boundary
 

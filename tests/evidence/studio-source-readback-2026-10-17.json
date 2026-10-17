@@ -1,0 +1,128 @@
+{
+  "checkedAt": "2026-10-17",
+  "sourceCommit": "566a2f24d2faee88d441115d92127e01685058e9",
+  "archiveSha256": "46e458e3125421abd5144b409c75e40dfb8aee7a98d284c57fc6582e673ccd69",
+  "files": [
+    {
+      "file": "index.html",
+      "sha256": "af544d5ae3ef5432fa4e6f85301c3d58af9d1038d7f968e834c1a2ac684a5732",
+      "matchesCanonical": true
+    },
+    {
+      "file": "package.json",
+      "sha256": "8dc4daded2b27b1ab3cc7a40ce6c9cd926d50c42372115759a923e708c307168",
+      "matchesCanonical": false
+    },
+    {
+      "file": "postcss.config.js",
+      "sha256": "f0156321fafa19749b38a82ea29e7b1786a1f727b67372ef40cc66de0ed898fb",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/App.tsx",
+      "sha256": "c79773b4fa36d41fa57a8ffb976348b3bec7820233efa635b7e71566e3ef96c0",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/components/BillDetails.tsx",
+      "sha256": "eebf383a4eafa66dea367356299fc4cc71ef595c4fff9e8aab5c8bd4ae4c8a39",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/components/CreateBill.tsx",
+      "sha256": "8dba117d90d0baec04fef21e80493262ea62072e4447393e3893b35250bf0852",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/config.ts",
+      "sha256": "366034d0c46e23e9b4aa89ee392bc3555ccc813d7f28c111b225abbba0b66a5c",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/createBillReceipt.ts",
+      "sha256": "8046256838bde42a2eaaf9896b962604f7762eae39782bc296c4c0e2a3e2944a",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/index.css",
+      "sha256": "eb056f617979ae64b63167ee0ac076dc80724edbd51b1eccb5a7d2e7f64d608d",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/main.tsx",
+      "sha256": "88d118320d75c51b04e7b355471027e6ab353e79c7a7109806ad18de81865160",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/onchain-facts.ts",
+      "sha256": "b4c45994e26e377923c5f54e706709449435af051ce89f493027f111cdf2f070",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/receiptHistory.ts",
+      "sha256": "d59754afab4e93aff51ec94cf1893f14308390f5b5295e7ea107460b49f1cc1e",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/splitReceiptContract.ts",
+      "sha256": "bd1c7884db9630b528c61f0a1c6ba542b2e75c71b4d5856955e5c2483e7f8079",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/usdcFormat.ts",
+      "sha256": "ec0bf64447ae8a1a0587488323d140cdc83d2924b1946fe46219e9b220c11cb9",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/vite-env.d.ts",
+      "sha256": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
+      "matchesCanonical": true
+    },
+    {
+      "file": "src/wallet-ui.tsx",
+      "sha256": "02ffe28d9b0930582d3a7f548a524ffaa328875db06127d4ad81d17ede2b1a54",
+      "matchesCanonical": true
+    },
+    {
+      "file": "tailwind.config.js",
+      "sha256": "96e72908328954920bc0840fa575f9114863576deb3cab9ec61951a3181650dd",
+      "matchesCanonical": true
+    },
+    {
+      "file": "tests/create-bill-receipt.test.ts",
+      "sha256": "39dda495b245ee8fb676c16666d71f1fc331624c44f89f4456013028889357f8",
+      "matchesCanonical": true
+    },
+    {
+      "file": "tests/receipt-history.test.ts",
+      "sha256": "de93a4eebae3ced8b78535200c41cbaec179000fc22971f4db89359b94b5f84c",
+      "matchesCanonical": true
+    },
+    {
+      "file": "tests/usdc-format.test.ts",
+      "sha256": "596e6eaaa922113f7a86a30452013cfd01e544b468dc7ad731575e2a91c813c2",
+      "matchesCanonical": true
+    },
+    {
+      "file": "tsconfig.json",
+      "sha256": "1cc0cfadbc5ff547be6167155f47c3b2d2d317b5717a2079f27805a8247db5a6",
+      "matchesCanonical": true
+    },
+    {
+      "file": "vite.config.ts",
+      "sha256": "a026dd5c5689f149ffc5e702d11a894dfeb1ed6847e2ddba7dfa5b9406ce85dc",
+      "matchesCanonical": false
+    }
+  ],
+  "contractMatches": true,
+  "studioOnlyDifferences": [
+    {
+      "file": "package.json",
+      "diff": "--- canonical/package.json\n+++ studio/package.json\n@@ -9,7 +9,7 @@\n   },\n   \"packageManager\": \"npm@10.9.8\",\n   \"scripts\": {\n-    \"dev\": \"vite --host 127.0.0.1\",\n+    \"dev\": \"vite --host 0.0.0.0\",\n     \"build\": \"vite build\",\n     \"preview\": \"vite preview --host 127.0.0.1\",\n     \"typecheck\": \"tsc --noEmit\",\n"
+    },
+    {
+      "file": "vite.config.ts",
+      "diff": "--- canonical/vite.config.ts\n+++ studio/vite.config.ts\n@@ -9,6 +9,6 @@\n     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },\n     dedupe: ['react', 'react-dom'],\n   },\n-  server: { host: '127.0.0.1', strictPort: true, cors: false },\n+  server: { host: '0.0.0.0', allowedHosts: true, strictPort: true, cors: false },\n   preview: { host: '127.0.0.1', strictPort: true, cors: false },\n }))\n"
+    }
+  ]
+}
