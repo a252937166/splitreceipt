@@ -289,12 +289,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     <div>
       {/* ── Back + refresh ──────────────────────────────────────────── */}
       <div className="flex items-center gap-3 mb-6">
-        <button
-          type="button"
-          onClick={onBack}
-          className="btn-ghost"
-          style={{ gap: '6px' }}
-        >
+        <button type="button" onClick={onBack} className="btn-ghost" style={{ gap: '6px' }}>
           <ArrowLeft size={14} aria-hidden="true" />
           New bill
         </button>
@@ -304,7 +299,6 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
             onClick={handleRefresh}
             className="btn-ghost ml-auto"
             aria-label="Refresh bill"
-            title="Refresh"
           >
             <RefreshCw size={14} aria-hidden="true" />
             Refresh
@@ -341,18 +335,16 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
 
           {/* Title + meta */}
           <div>
-            <h1 className="text-2xl font-bold mb-1 break-words" style={{ color: 'var(--ink)' }}>
-              {title}
-            </h1>
+            <h1 className="text-2xl mb-2 break-words" style={{ color: 'var(--ink)' }}>{title}</h1>
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
+              <span className="text-sm font-medium sr-mono" style={{ color: 'var(--subtle)' }}>
                 Bill #{billId.toString()}
               </span>
               <button
                 type="button"
                 onClick={handleCopyLink}
                 className="btn-ghost"
-                style={{ gap: '5px', padding: '4px 10px', minHeight: '44px', fontSize: '12px' }}
+                style={{ gap: '5px', padding: '4px 12px', minHeight: '44px', fontSize: '12px', borderRadius: '9999px' }}
                 aria-live="polite"
                 aria-label={copied ? 'Link copied' : 'Copy bill link'}
               >
@@ -370,16 +362,16 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
               <div>
                 <p className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Each pays</p>
-                <p className="text-xl font-bold tabular-nums break-all" style={{ color: 'var(--ink)' }}>
-                  {shareDisplay}{' '}
-                  <span className="text-sm font-medium" style={{ color: 'var(--muted)' }}>USDC</span>
+                <p className="text-xl font-bold tabular-nums sr-mono break-all" style={{ color: 'var(--ink)' }}>
+                  {shareDisplay}
+                  <span className="text-sm font-medium ml-1" style={{ color: 'var(--muted)' }}>USDC</span>
                 </p>
               </div>
               <div>
                 <p className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Total</p>
-                <p className="text-xl font-bold tabular-nums break-all" style={{ color: 'var(--ink)' }}>
-                  {totalAmount}{' '}
-                  <span className="text-sm font-medium" style={{ color: 'var(--muted)' }}>USDC</span>
+                <p className="text-xl font-bold tabular-nums sr-mono break-all" style={{ color: 'var(--ink)' }}>
+                  {totalAmount}
+                  <span className="text-sm font-medium ml-1" style={{ color: 'var(--muted)' }}>USDC</span>
                 </p>
               </div>
               <div className="col-span-2 sm:col-span-1 sm:text-right">
@@ -389,8 +381,14 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
                 </p>
               </div>
             </div>
-            {/* Progress bar */}
-            <div className="progress-bar" role="progressbar" aria-valuenow={paidPct} aria-valuemin={0} aria-valuemax={100} aria-label="Payment progress">
+            <div
+              className="progress-bar"
+              role="progressbar"
+              aria-valuenow={paidPct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Payment progress"
+            >
               <div className="progress-bar__fill" style={{ width: `${paidPct}%` }} />
             </div>
           </div>
@@ -410,18 +408,17 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
               {totalPaid > 0 && (
                 <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: allPaidReceiptsFound ? 'var(--success)' : 'var(--muted)' }}>
                   {allPaidReceiptsFound
-                    ? <><CheckCircle2 size={13} aria-hidden="true" /> {verifiedPaidCount} of {totalPaid} verified</>
+                    ? <><CheckCircle2 size={13} aria-hidden="true" /> {verifiedPaidCount} of {totalPaid} payment receipts verified</>
                     : logStatus?.loading
                       ? <><div className="spinner" style={{ width: '12px', height: '12px' }} aria-hidden="true" /> Looking up receipts…</>
-                      : <>{verifiedPaidCount} of {totalPaid} verified</>
+                      : <>{verifiedPaidCount} of {totalPaid} payment receipts verified</>
                   }
                 </div>
               )}
             </div>
 
-            {/* Payer table */}
+            {/* Payer table — desktop */}
             <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {/* Header row — desktop only */}
               <div
                 className="hidden sm:grid grid-cols-[2rem_1fr_auto_auto] gap-3 px-5 py-2 text-xs font-medium"
                 style={{ color: 'var(--subtle)', borderBottom: '1px solid var(--border)' }}
@@ -444,20 +441,21 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
                   <div key={p} className="px-5 py-3">
                     {/* Desktop row */}
                     <div className="hidden sm:grid grid-cols-[2rem_1fr_auto_auto] gap-3 items-center">
-                      <span className="text-sm font-medium" style={{ color: 'var(--subtle)' }}>{i + 1}</span>
+                      <span className="text-sm" style={{ color: 'var(--subtle)' }}>{i + 1}</span>
                       <div className="addr-cell flex items-center gap-2 min-w-0">
                         <a
                           href={`${chain.explorerBase}/address/${p}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="sr-mono text-sm min-w-0"
+                          className="sr-mono text-sm min-w-0 addr-cell"
                           style={{ color: isMe ? 'var(--accent-hover)' : 'var(--ink-2)' }}
                           title={p}
                         >
                           {fmtAddress(p)}
                         </a>
                         {isMe && (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ background: 'var(--surface-info)', color: 'var(--accent-hover)' }}>
+                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0"
+                            style={{ background: 'var(--info-bg)', color: 'var(--info-ink)' }}>
                             you
                           </span>
                         )}
@@ -468,7 +466,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
                           : <span className="badge-unpaid">Unpaid</span>
                         }
                       </div>
-                      <div className="min-w-[100px] text-right">
+                      <div className="min-w-[110px] text-right">
                         {payerTxUrl ? (
                           <a
                             href={payerTxUrl}
@@ -496,20 +494,18 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
                         }
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <a
-                            href={`${chain.explorerBase}/address/${p}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="sr-mono text-sm addr-cell"
-                            style={{ color: isMe ? 'var(--accent-hover)' : 'var(--ink-2)' }}
-                            title={p}
-                          >
-                            {fmtAddress(p)}
-                          </a>
-                          {isMe && <span className="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0" style={{ background: 'var(--surface-info)', color: 'var(--accent-hover)' }}>you</span>}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="sr-mono text-sm break-all" style={{ color: isMe ? 'var(--accent-hover)' : 'var(--ink-2)' }}>
+                            {p}
+                          </span>
+                          {isMe && (
+                            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0"
+                              style={{ background: 'var(--info-bg)', color: 'var(--info-ink)' }}>
+                              you
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-3 mt-1">
+                        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                           {paid
                             ? <span className="badge-paid text-xs"><CheckCircle2 size={10} aria-hidden="true" />Paid</span>
                             : <span className="badge-unpaid text-xs">Unpaid</span>
@@ -533,23 +529,14 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
               })}
             </div>
 
-            {/* Recipient row */}
+            {/* Recipient */}
             <div className="px-5 pt-4 pb-5 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
               <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--ink)' }}>Recipient</h3>
               <p className="text-xs mb-1.5" style={{ color: 'var(--muted)' }}>
                 Recipient (receives {totalAmount} USDC)
               </p>
-              <div className="flex items-center gap-2">
-                <a
-                  href={`${chain.explorerBase}/address/${recipient}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="sr-mono text-sm addr-cell"
-                  style={{ color: 'var(--ink-2)' }}
-                  title={recipient}
-                >
-                  {fmtAddress(recipient)}
-                </a>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="sr-mono text-sm break-all" style={{ color: 'var(--ink-2)' }}>{fmtAddress(recipient)}</span>
                 <a
                   href={`${chain.explorerBase}/address/${recipient}`}
                   target="_blank"
@@ -563,7 +550,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
               </div>
             </div>
 
-            {/* ── Receipt verification details (collapsible) ─────────── */}
+            {/* Receipt verification details (collapsible) */}
             {totalPaid > 0 && (
               <div className="px-5 pb-4">
                 <button
@@ -723,7 +710,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
           {!isConnected && !isSettled && (
             <div className="alert-info">
               <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0 }} />
-              <span className="text-sm" style={{ color: 'var(--ink-2)' }}>
+              <span className="text-sm" style={{ color: 'var(--info-ink)' }}>
                 Connect a wallet using the button in the header to pay your share.
               </span>
             </div>

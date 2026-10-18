@@ -2,162 +2,121 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Design tokens ─────────────────────────────────────────────────────────── */
+/* ── Design tokens — dark workspace ────────────────────────────────────────── */
 :root {
-  /* Surfaces */
-  --bg:               #f0f4f8;
-  --surface:          #ffffff;
-  --surface-muted:    #f4f6f9;
-  --surface-strong:   #ffffff;
-  --surface-info:     #e8f0fe;
+  /* Canvas / surfaces */
+  --bg:               #07090f;
+  --surface:          #101520;
+  --surface-raised:   #161d2e;
+  --surface-muted:    #0d1018;
+  --surface-input:    #0a0d15;
 
   /* Type */
-  --ink:              #0f2236;
-  --ink-2:            #2c4a63;
-  --muted:            #5a7080;
-  --subtle:           #5f7382;
+  --ink:              #e9eef7;
+  --ink-2:            #c4cfe0;
+  --muted:            #aeb8c8;
+  --subtle:           #6b7a91;
 
   /* Borders */
-  --border:           rgba(15, 34, 54, 0.10);
-  --border-strong:    rgba(15, 34, 54, 0.28);
+  --border:           rgba(174, 184, 200, 0.12);
+  --border-strong:    rgba(174, 184, 200, 0.28);
 
-  /* Actions */
-  --accent:           #1a3a5c;
-  --accent-hover:     #1061a6;
+  /* Actions — sky/teal palette */
+  --accent:           #1e3a5f;
+  --accent-solid:     #2563a8;
+  --accent-hover:     #7dd3fc;
   --accent-fg:        #ffffff;
-  --focus:            #4d9fef;
+  --focus:            #5eead4;
 
-  /* Status */
-  --success:          #1a8047;
-  --success-bg:       #eaf6f0;
-  --success-border:   #b8dfc9;
-  --warn-bg:          #fffbeb;
-  --warn-border:      #f5c842;
-  --warn-ink:         #7a5200;
-  --danger:           #b91c4a;
-  --danger-bg:        #fce8ed;
-  --danger-border:    #f5b8c8;
+  /* Status — teal success, amber warn, rose danger */
+  --success:          #5eead4;
+  --success-bg:       rgba(94, 234, 212, 0.10);
+  --success-border:   rgba(94, 234, 212, 0.25);
+  --warn-bg:          rgba(251, 191, 36, 0.10);
+  --warn-border:      rgba(251, 191, 36, 0.30);
+  --warn-ink:         #fbbf24;
+  --danger:           #f87171;
+  --danger-bg:        rgba(248, 113, 113, 0.10);
+  --danger-border:    rgba(248, 113, 113, 0.25);
 
-  /* Progress bar */
-  --progress-track:   #dce4ec;
-  --progress-fill:    #1a8047;
+  /* Progress */
+  --progress-track:   rgba(174, 184, 200, 0.12);
+  --progress-fill:    #5eead4;
 
-  /* Spacing rhythm */
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 20px;
-  --sp-6: 24px;
-  --sp-8: 32px;
-  --sp-10: 40px;
-  --sp-12: 48px;
+  /* Info strip */
+  --info-bg:          rgba(125, 211, 252, 0.08);
+  --info-border:      rgba(125, 211, 252, 0.18);
+  --info-ink:         #7dd3fc;
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
 /* ── Base ──────────────────────────────────────────────────────────────────── */
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; color-scheme: dark; }
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  /* Local serif headings: Iowan Old Style → Georgia → generic */
+  font-family: system-ui, -apple-system, 'Avenir Next', 'Avenir', 'Segoe UI', Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 1.5;
   min-height: 100dvh;
 }
 
+/* ── Headings use local serif stack ────────────────────────────────────────── */
+h1, h2, .sr-serif {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
 /* ── Focus ring ────────────────────────────────────────────────────────────── */
 :focus-visible {
-  outline: 2.5px solid var(--focus);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
-/* ── Typography helpers ────────────────────────────────────────────────────── */
+/* ── Monospace: addresses and amounts ──────────────────────────────────────── */
 .sr-mono {
-  font-family: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Menlo, monospace;
+  font-family: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Touch target enforcement ──────────────────────────────────────────────── */
+/* ── Touch targets ─────────────────────────────────────────────────────────── */
 .touch-target {
   min-height: 44px;
   min-width: 44px;
 }
 
-/* ── Address truncation ────────────────────────────────────────────────────── */
+/* ── Address overflow safety ───────────────────────────────────────────────── */
 .addr-cell {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* ── Progress bar ──────────────────────────────────────────────────────────── */
-.progress-bar {
-  height: 8px;
-  border-radius: 9999px;
-  background: var(--progress-track);
-  overflow: hidden;
-}
-.progress-bar__fill {
-  height: 100%;
-  border-radius: 9999px;
-  background: var(--progress-fill);
+/* Mobile: wrap full address */
+@media (max-width: 639px) {
+  .addr-cell {
+    white-space: normal;
+    word-break: break-all;
+    overflow: visible;
+    text-overflow: clip;
+  }
 }
 
-/* ── Spinner ───────────────────────────────────────────────────────────────── */
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--border-strong);
-  border-top-color: var(--accent);
-  border-radius: 9999px;
-  animation: spin 0.75s linear infinite;
-  flex-shrink: 0;
-}
-@media (prefers-reduced-motion: reduce) {
-  .spinner { animation: none; opacity: 0.5; }
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ── Payer number badge ────────────────────────────────────────────────────── */
-.payer-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 600;
-  background: var(--surface-info);
-  color: var(--accent-hover);
-  flex-shrink: 0;
-}
-
-/* ── How-it-works step circle ──────────────────────────────────────────────── */
-.step-circle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 9999px;
-  font-size: 13px;
-  font-weight: 700;
-  background: var(--surface-info);
-  color: var(--accent-hover);
-  flex-shrink: 0;
-}
-
-/* ── Card ──────────────────────────────────────────────────────────────────── */
+/* ── Card panel ────────────────────────────────────────────────────────────── */
 .card {
   background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.card-raised {
+  background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: 16px;
 }
@@ -165,8 +124,8 @@ body {
 /* ── Input ─────────────────────────────────────────────────────────────────── */
 .sr-input {
   width: 100%;
-  background: var(--surface-muted);
-  border: 1px solid var(--border);
+  background: var(--surface-input);
+  border: 1px solid var(--border-strong);
   border-radius: 10px;
   padding: 10px 14px;
   font-size: 15px;
@@ -179,10 +138,72 @@ body {
 .sr-input:focus-visible {
   border-color: var(--focus);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(77, 159, 239, 0.25);
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.15);
 }
 
-/* ── Status badge ──────────────────────────────────────────────────────────── */
+/* ── Primary button ────────────────────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 12px 24px;
+  background: var(--accent-solid);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+}
+.btn-primary:hover:not(:disabled) { background: #1d4f8a; }
+.btn-primary:disabled { opacity: 0.40; cursor: not-allowed; }
+
+/* ── Ghost / outline button ────────────────────────────────────────────────── */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--ink-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.btn-ghost:hover:not(:disabled) { background: var(--surface-raised); border-color: var(--muted); }
+.btn-ghost:disabled { opacity: 0.40; cursor: not-allowed; }
+
+/* ── Pill: connect wallet ──────────────────────────────────────────────────── */
+.btn-wallet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 18px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--border-strong);
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+.btn-wallet:hover:not(:disabled) { background: var(--accent); border-color: var(--info-border); }
+.btn-wallet:disabled { opacity: 0.40; cursor: not-allowed; }
+
+/* ── Status badges ─────────────────────────────────────────────────────────── */
 .badge-paid {
   display: inline-flex;
   align-items: center;
@@ -198,7 +219,7 @@ body {
 .badge-unpaid {
   display: inline-flex;
   align-items: center;
-  background: var(--surface-muted);
+  background: rgba(107, 122, 145, 0.12);
   color: var(--subtle);
   border: 1px solid var(--border);
   border-radius: 9999px;
@@ -212,63 +233,55 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--surface-info);
-  color: var(--accent-hover);
-  border: 1px solid rgba(16, 97, 166, 0.20);
+  background: var(--info-bg);
+  color: var(--info-ink);
+  border: 1px solid var(--info-border);
   border-radius: 9999px;
   font-size: 12px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 4px 12px;
 }
 .badge-network::before {
   content: '';
   width: 7px;
   height: 7px;
   border-radius: 9999px;
-  background: #22c55e;
+  background: var(--success);
+  flex-shrink: 0;
+}
+@media (max-width: 639px) {
+  .badge-network { display: none; }
+}
+
+/* ── Payer number badge ────────────────────────────────────────────────────── */
+.payer-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--info-bg);
+  color: var(--info-ink);
   flex-shrink: 0;
 }
 
-/* ── Primary button ────────────────────────────────────────────────────────── */
-.btn-primary {
+/* ── How-it-works step circle ──────────────────────────────────────────────── */
+.step-circle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 48px;
-  padding: 12px 24px;
-  background: var(--accent);
-  color: var(--accent-fg);
-  border: none;
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-  width: 100%;
-}
-.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
-
-/* ── Ghost button ──────────────────────────────────────────────────────────── */
-.btn-ghost {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 6px 14px;
-  background: transparent;
-  color: var(--ink-2);
-  border: 1px solid var(--border);
-  border-radius: 9px;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
   font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  font-weight: 700;
+  background: var(--accent);
+  color: var(--accent-hover);
+  flex-shrink: 0;
 }
-.btn-ghost:hover:not(:disabled) { background: var(--surface-muted); border-color: var(--border-strong); }
-.btn-ghost:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Alert banners ─────────────────────────────────────────────────────────── */
 .alert-warn {
@@ -309,15 +322,47 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  background: var(--surface-info);
-  border: 1px solid rgba(16, 97, 166, 0.18);
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
   border-radius: 10px;
   padding: 10px 14px;
   font-size: 13px;
-  color: var(--ink-2);
+  color: var(--info-ink);
 }
 
-/* ── Collapsible details ───────────────────────────────────────────────────── */
+/* ── Progress bar ──────────────────────────────────────────────────────────── */
+.progress-bar {
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--progress-track);
+  overflow: hidden;
+}
+.progress-bar__fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--progress-fill);
+  transition: width 0.4s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar__fill { transition: none; }
+}
+
+/* ── Spinner ───────────────────────────────────────────────────────────────── */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--success);
+  border-radius: 9999px;
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; opacity: 0.5; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Collapsible ───────────────────────────────────────────────────────────── */
 .collapsible-trigger {
   display: flex;
   align-items: center;
@@ -326,7 +371,7 @@ body {
   background: none;
   border: none;
   padding: 12px 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--muted);
   cursor: pointer;
@@ -343,6 +388,34 @@ body {
   .collapsible-chevron { transition: none; }
 }
 
-@media (max-width: 639px) {
-  .badge-network { display: none; }
+/* ── Nav underline ─────────────────────────────────────────────────────────── */
+.nav-link {
+  position: relative;
+  padding: 4px 2px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.nav-link:hover { color: var(--ink); }
+.nav-link--active { color: var(--ink); }
+.nav-link--active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--success);
+  border-radius: 9999px;
+}
+
+/* ── Wallet checks section ─────────────────────────────────────────────────── */
+.wallet-checks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
 }

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi'
 import { decodeEventLog } from 'viem'
-import { ExternalLink, CheckCircle, AlertCircle, Plus, Trash2, Info } from 'lucide-react'
+import { ExternalLink, CheckCircle, AlertCircle, Plus, Trash2, Info, Shield } from 'lucide-react'
 import { SPLIT_RECEIPT_ABI, SPLIT_RECEIPT_ADDRESS, ARC_TESTNET_CHAIN_ID } from '../splitReceiptContract'
 import { requireChain } from '@/onchain-facts'
 import { parseUsdcToNative, fmtNativeUsdc, validateUsdcInput } from '../usdcFormat'
@@ -38,9 +38,10 @@ function derivePreview(shareText: string, payerCount: number): { share: bigint; 
 
 interface CreateBillProps {
   onBillCreated: (billId: bigint) => void
+  onViewDemo: () => void
 }
 
-export default function CreateBill({ onBillCreated }: CreateBillProps) {
+export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProps) {
   const { address, chainId, isConnected } = useAccount()
   const { switchChain, isPending: isSwitching, error: switchError } = useSwitchChain()
   const { writeContract, data: txHash, isPending, error: writeError, reset } = useWriteContract()
@@ -171,10 +172,8 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
     <div>
       {/* ── Page heading ─────────────────────────────────────────────── */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight mb-1" style={{ color: 'var(--ink)' }}>
-          Create a shared bill
-        </h1>
-        <p style={{ color: 'var(--muted)' }}>One link. Equal shares. Verifiable payments.</p>
+        <h1 className="text-3xl mb-1" style={{ color: 'var(--ink)' }}>Create a shared bill</h1>
+        <p style={{ color: 'var(--muted)', fontSize: '15px' }}>Set equal shares. Send one link. Check every payment.</p>
       </div>
 
       {/* ── Not deployed banner ──────────────────────────────────────── */}
@@ -185,14 +184,14 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
         </div>
       )}
 
-      {/* ── 2-column desktop layout ──────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
+      {/* ── 2-column layout ──────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5 items-start">
 
-        {/* ── Left: form card ──────────────────────────────────────────── */}
+        {/* ── Left: form ───────────────────────────────────────────────── */}
         <div className="card p-6 space-y-5">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--ink)' }}>Bill details</h2>
+          <h2 className="text-base font-semibold" style={{ color: 'var(--ink-2)' }}>Bill details</h2>
 
-          {/* Wrong chain banner */}
+          {/* Wrong chain */}
           {isWrongChain && (
             <div className="alert-warn" role="alert">
               <AlertCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
@@ -200,7 +199,7 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
               <button
                 type="button"
                 className="btn-ghost"
-                style={{ minHeight: '44px', padding: '4px 12px', fontSize: '13px' }}
+                style={{ minHeight: '44px', padding: '4px 12px', fontSize: '13px', borderRadius: '9999px' }}
                 onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
                 disabled={isSwitching}
                 aria-busy={isSwitching}
@@ -217,7 +216,7 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
 
           {/* Bill name */}
           <div>
-            <label htmlFor="bill-title" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--ink-2)' }}>
+            <label htmlFor="bill-title" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--muted)' }}>
               Bill name
             </label>
             <input
@@ -237,7 +236,7 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
           {/* Recipient */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="recipient" className="text-sm font-medium" style={{ color: 'var(--ink-2)' }}>
+              <label htmlFor="recipient" className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
                 Recipient wallet
               </label>
               {isConnected && address && (
@@ -268,7 +267,7 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
 
           {/* Amount per person */}
           <div>
-            <label htmlFor="share-amount" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--ink-2)' }}>
+            <label htmlFor="share-amount" className="block text-sm font-medium mb-1.5" style={{ color: 'var(--muted)' }}>
               Amount per person
             </label>
             <div className="relative">
@@ -277,7 +276,7 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
                 type="text"
                 inputMode="decimal"
                 className="sr-input"
-                style={{ paddingRight: '56px' }}
+                style={{ paddingRight: '60px' }}
                 placeholder="0.00"
                 value={share}
                 onChange={e => setShare(e.target.value)}
@@ -285,7 +284,7 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
               />
               <span
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none"
-                style={{ color: 'var(--muted)' }}
+                style={{ color: 'var(--subtle)' }}
               >
                 USDC
               </span>
@@ -297,9 +296,7 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
 
           {/* People paying */}
           <div>
-            <p className="text-sm font-medium mb-0.5" style={{ color: 'var(--ink-2)' }}>
-              People paying
-            </p>
+            <p className="text-sm font-medium mb-0.5" style={{ color: 'var(--muted)' }}>People paying</p>
             <p className="text-xs mb-3" style={{ color: 'var(--subtle)' }}>
               2–5 unique wallets · Equal shares
             </p>
@@ -321,8 +318,8 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
                     <button
                       type="button"
                       onClick={() => removePayer(i)}
-                      className="touch-target flex items-center justify-center rounded-lg"
-                      style={{ color: 'var(--danger)', flexShrink: 0, width: '36px', height: '36px' }}
+                      className="touch-target flex items-center justify-center"
+                      style={{ color: 'var(--danger)', flexShrink: 0, width: '44px', height: '44px' }}
                       aria-label={`Remove payer ${i + 1}`}
                     >
                       <Trash2 size={15} aria-hidden="true" />
@@ -391,13 +388,21 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
               <p className="text-sm" style={{ color: 'var(--muted)' }}>
                 Connect a wallet using the button in the header to create a bill.
               </p>
-              <div
-                className="rounded-xl border-2 border-dashed flex items-center justify-center py-3 text-sm font-medium"
-                style={{ borderColor: 'var(--border-strong)', color: 'var(--subtle)' }}
+              <button
+                type="button"
+                disabled
+                className="btn-primary"
                 aria-disabled="true"
+                style={{
+                  background: 'transparent',
+                  border: '2px dashed var(--border-strong)',
+                  color: 'var(--subtle)',
+                  opacity: 1,
+                  cursor: 'not-allowed',
+                }}
               >
                 Connect wallet to continue
-              </div>
+              </button>
             </div>
           ) : (
             <button
@@ -414,39 +419,44 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
             </button>
           )}
 
-          {/* Sub-caption */}
-          <p className="text-xs text-center" style={{ color: 'var(--subtle)' }}>
-            {isConnected && !isWrongChain && !isBusy
-              ? 'Wallet confirmation required'
-              : '\u00a0'}
-          </p>
+          {/* Sub-caption + demo link */}
+          <div className="flex items-center justify-between text-xs" style={{ color: 'var(--subtle)' }}>
+            <span>{isConnected && !isWrongChain && !isBusy ? 'Wallet confirmation required' : '\u00a0'}</span>
+            <button
+              type="button"
+              className="font-medium"
+              style={{ color: 'var(--accent-hover)' }}
+              onClick={onViewDemo}
+            >
+              View receipts without connecting →
+            </button>
+          </div>
         </div>
 
-        {/* ── Right: preview + how-it-works ─────────────────────────── */}
+        {/* ── Right: preview + how-it-works ────────────────────────── */}
         <div className="space-y-4">
 
           {/* Bill preview */}
-          <div className="card p-5">
-            <h2 className="text-base font-semibold mb-4" style={{ color: 'var(--ink)' }}>Bill preview</h2>
+          <div className="card-raised p-5">
+            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--muted)', fontFamily: 'inherit', letterSpacing: 'normal' }}>
+              Bill preview
+            </h2>
             <dl className="space-y-3" aria-live="polite">
               <div className="flex items-center justify-between">
                 <dt className="text-sm" style={{ color: 'var(--muted)' }}>People</dt>
-                <dd className="text-sm font-semibold tabular-nums text-right break-all min-w-0 ml-3" style={{ color: 'var(--ink)' }}>
+                <dd className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
                   {payers.length}
                 </dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-sm" style={{ color: 'var(--muted)' }}>Each pays</dt>
-                <dd className="text-sm font-semibold tabular-nums text-right break-all min-w-0 ml-3" style={{ color: 'var(--ink)' }}>
-                  {preview ? `${fmtNativeUsdc(preview.share)} USDC` : <span style={{ color: 'var(--subtle)' }}>—</span>}
+                <dd className="text-sm font-semibold tabular-nums sr-mono text-right break-all" style={{ color: 'var(--ink)' }}>
+                  {preview ? `${fmtNativeUsdc(preview.share)} USDC` : <span style={{ color: 'var(--subtle)', fontWeight: 400 }}>—</span>}
                 </dd>
               </div>
-              <div
-                className="flex items-center justify-between pt-3"
-                style={{ borderTop: '1px solid var(--border)' }}
-              >
+              <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--border)' }}>
                 <dt className="text-sm font-medium" style={{ color: 'var(--ink-2)' }}>Total to recipient</dt>
-                <dd className="text-base font-bold tabular-nums text-right break-all min-w-0 ml-3" style={{ color: 'var(--ink)' }}>
+                <dd className="text-base font-bold tabular-nums sr-mono text-right break-all" style={{ color: 'var(--ink)' }}>
                   {preview ? `${fmtNativeUsdc(preview.total)} USDC` : <span style={{ color: 'var(--subtle)', fontWeight: 400 }}>—</span>}
                 </dd>
               </div>
@@ -454,8 +464,10 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
           </div>
 
           {/* How it works */}
-          <div className="card p-5">
-            <h2 className="text-base font-semibold mb-4" style={{ color: 'var(--ink)' }}>How it works</h2>
+          <div className="card-raised p-5">
+            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--muted)', fontFamily: 'inherit', letterSpacing: 'normal' }}>
+              How it works
+            </h2>
             <ol className="space-y-4" aria-label="Steps">
               {[
                 { label: 'Create bill', desc: 'Add a name, amount, recipient and the people paying.' },
@@ -471,32 +483,44 @@ export default function CreateBill({ onBillCreated }: CreateBillProps) {
                 </li>
               ))}
             </ol>
+
             <div
               className="mt-5 flex items-start gap-3 rounded-xl p-3"
               style={{ background: 'var(--success-bg)', border: '1px solid var(--success-border)' }}
             >
-              <CheckCircle size={16} style={{ color: 'var(--success)', flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
+              <Shield size={15} style={{ color: 'var(--success)', flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold" style={{ color: 'var(--success)' }}>Shares go directly to the recipient.</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--success)' }}>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--success)', opacity: 0.85 }}>
                   Each person sends their share in USDC to the recipient wallet.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Testnet clarification */}
+          {/* Testnet note */}
           <div
             className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs"
-            style={{ background: 'var(--surface-info)', color: 'var(--accent-hover)', border: '1px solid rgba(16,97,166,0.18)' }}
+            style={{ background: 'var(--info-bg)', color: 'var(--info-ink)', border: '1px solid var(--info-border)' }}
           >
             <Info size={13} style={{ flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
-            <span>
-              Arc Testnet only. USDC here has no real-world value.
-            </span>
+            <span>Arc Testnet only. USDC here has no real-world value.</span>
           </div>
         </div>
       </div>
+
+      {/* ── Footer note ───────────────────────────────────────────────── */}
+      <p className="mt-6 text-center text-xs" style={{ color: 'var(--subtle)' }}>
+        Explore a completed testnet bill.{' '}
+        <button
+          type="button"
+          className="font-medium"
+          style={{ color: 'var(--accent-hover)' }}
+          onClick={onViewDemo}
+        >
+          View receipts without connecting
+        </button>
+      </p>
     </div>
   )
 }
