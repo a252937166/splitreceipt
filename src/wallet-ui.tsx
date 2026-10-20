@@ -107,7 +107,7 @@ export function WalletButton() {
     {open && (
       <div
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        style={{ background: 'rgba(0,0,0,0.65)' }}
+        style={{ background: 'rgba(0,0,0,0.65)', whiteSpace: 'normal' }}
         onClick={event => { if (event.target === event.currentTarget) close() }}
       >
         <section
@@ -125,6 +125,8 @@ export function WalletButton() {
             padding: '24px',
             width: '100%',
             maxWidth: '380px',
+            minWidth: 0,
+            whiteSpace: 'normal',
             maxHeight: 'calc(100dvh - 2rem)',
             overflowY: 'auto',
             color: 'var(--ink)',
@@ -205,7 +207,7 @@ export function WalletButton() {
                   type="button"
                   disabled={pending}
                   className="btn-ghost"
-                  style={{ width: '100%', minHeight: '48px', justifyContent: 'flex-start', padding: '12px 16px' }}
+                  style={{ display: 'flex', width: '100%', minHeight: '48px', justifyContent: 'flex-start', padding: '12px 16px' }}
                   onClick={() => {
                     setError('')
                     void connectAsync({ connector, chainId: arcTestnet.id })
