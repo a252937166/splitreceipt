@@ -34,6 +34,7 @@ function getViewFromUrl(): View {
 function setUrlBillId(billId: bigint) {
   const url = new URL(window.location.href)
   url.searchParams.set('bill', billId.toString())
+  url.searchParams.delete('receipts')
   url.hash = ''
   window.history.pushState({}, '', url.toString())
 }
@@ -41,6 +42,7 @@ function setUrlBillId(billId: bigint) {
 function clearUrl() {
   const url = new URL(window.location.href)
   url.searchParams.delete('bill')
+  url.searchParams.delete('receipts')
   url.hash = ''
   window.history.pushState({}, '', url.toString())
 }
@@ -48,6 +50,7 @@ function clearUrl() {
 function setUrlChecks() {
   const url = new URL(window.location.href)
   url.searchParams.delete('bill')
+  url.searchParams.delete('receipts')
   url.hash = 'checks'
   window.history.pushState({}, '', url.toString())
 }

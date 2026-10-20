@@ -81,9 +81,17 @@ See [dependency isolation](docs/DEPENDENCY-ISOLATION.md) and [vendored Solidity 
 
 ## Receipts and limits
 
-The browser reads bill state and validates matching `SharePaid` events from the configured contract. History is scanned newest first in pages of at most 2,000 blocks, with up to 25 pages per batch. Continue scanning to reach earlier history; successful pages survive an in-page retry. A complete page reload rebuilds receipts from the chain, without a private database or external indexer.
+Receipt recovery runs in two sequential phases on page load and on every explicit refresh:
+
+**Phase 1 — Hint fast-path.** A bundled catalog of known public testnet receipt hashes, plus any hashes stored from a previous visit or encoded in the `?receipts=` URL parameter, are each verified against the live RPC before use. Verification requires: `getChainId()` confirming Arc Testnet 5042002, a fresh `getBlockNumber()` head (receipts from blocks beyond head are rejected), a valid non-empty 32-byte `blockHash` on the receipt, equality with the canonical block hash from `getBlock()`, and a matching `SharePaid` log with correct contract address, bill ID, payer and amount. A receipt whose `blockHash` is missing, empty or mismatched is treated as explicitly invalid, not silently skipped.
+
+Hashes that fail verification are tracked as `invalidatedHashes` and purged from all in-memory maps before the fallback scan runs. Hashes that return a transient RPC error are preserved for display only and are not treated as verified or invalidated. A conflicting distinct verified hash for the same payer marks the result as incomplete regardless of whether all payers have entries.
+
+**Phase 2 — Fallback log scan.** Runs only after the hint phase completes, and only for payers who still lack a verified receipt. History is scanned newest first in pages of at most 2,000 blocks, with up to 25 pages per batch. A complete page reload rebuilds receipts from the chain, without a private database or external indexer. Continue scanning to reach earlier history; successful pages survive an in-page retry.
 
 If all configured history has been scanned but some paid shares still lack links, **Retry full receipt history** starts a fresh scan while retaining already verified links.
+
+The **Copy bill link** button encodes only the receipts freshly verified in the current run for current paid payers, at most five hashes. Preserved display links from prior sessions are not included in the shared URL.
 
 Only confirmed successful payment events become receipt links. A wallet rejection, failed transaction or cancelled replacement must not be presented as a paid share.
 
