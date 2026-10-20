@@ -37,6 +37,15 @@ import {
   type ReceiptHistory,
   type SharePaidLog,
 } from '../receiptHistory'
+import {
+  assembleCandidates,
+  buildShareUrl,
+  loadStoredHints,
+  normaliseHash,
+  saveVerifiedHints,
+  type HintHash,
+} from '../receiptHints'
+import { discoverReceiptsFromHints } from '../receiptDiscovery'
 
 const chain = requireChain(ARC_TESTNET_CHAIN_ID)
 
@@ -64,6 +73,19 @@ interface BillDetailsProps {
   onBack: () => void
 }
 
+/**
+ * freshVerifiedRef context key: encodes scope + current paid-payer snapshot + scan
+ * generation. Copy is only valid when the key matches the current render.
+ */
+function makeFreshContextKey(scopeKey: string, paidPayersLc: string[], scanToken: number): string {
+  return `${scopeKey}:${[...paidPayersLc].sort().join(',')}:${scanToken}`
+}
+
+interface FreshVerified {
+  contextKey: string
+  receipts: Record<string, HintHash>
+}
+
 export default function BillDetails({ billId, onBack }: BillDetailsProps) {
   const { address, chainId, isConnected } = useAccount()
   const { switchChain, isPending: isSwitching, error: switchError } = useSwitchChain()
@@ -77,14 +99,31 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
   const [copyError, setCopyError] = useState('')
   const [detailsOpen, setDetailsOpen] = useState(false)
 
+  // Session receipts from confirmed payments this session (by scope → payer → hash).
   const [sessionReceiptHashes, setSessionReceiptHashes] = useState<
     Record<string, Record<string, `0x${string}`>>
   >({})
+
+  // Log-scan history (resumable, paginated).
   const historiesRef = useRef<Record<string, ReceiptHistory>>({})
   const [histories, setHistories] = useState<Record<string, ReceiptHistory>>({})
   const [historyStatus, setHistoryStatus] = useState<Record<string, { loading: boolean; error?: string }>>({})
 
-  // ── contract read ───────────────────────────────────────────────
+  // Hint fast-path state — only freshly verified hashes from the current run.
+  const [freshHintHashes, setFreshHintHashes] = useState<Record<string, Record<string, HintHash>>>({})
+  const [hintStatus, setHintStatus] = useState<Record<string, { loading: boolean; rpcError?: string }>>({})
+
+  // Fresh verified ref: scoped by context key (scope + paid snapshot + scan generation).
+  // Copy is valid ONLY when the context key matches the current render state.
+  // Reset to empty before EVERY early return and at start of each run.
+  const freshVerifiedRef = useRef<FreshVerified>({ contextKey: '', receipts: {} })
+
+  // Cancellation token for the combined hint+scan effect.
+  const scanCancelRef = useRef<(() => void) | null>(null)
+  // Bumped on every explicit refresh to restart the combined effect.
+  const [scanToken, setScanToken] = useState(0)
+
+  // ── contract read ────────────────────────────────────────────────
   const { data: billData, isLoading, error: readError, refetch } = useReadContract({
     address: SPLIT_RECEIPT_ADDRESS,
     abi: SPLIT_RECEIPT_ABI,
@@ -94,7 +133,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     query: { enabled: isContractDeployed },
   })
 
-  // ── write + wait ────────────────────────────────────────────────
+  // ── write + wait ─────────────────────────────────────────────────
   const { writeContract, data: submittedTxHash, isPending, error: writeError, reset } = useWriteContract()
   const pendingPaymentRef = useRef<PaymentSnapshot | null>(null)
   const [paymentContext, setPaymentContext] = useState<PaymentSnapshot | null>(null)
@@ -113,7 +152,8 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
       },
     })
 
-  // ── confirmed receipt effect ─────────────────────────────────────
+  // ── confirmed receipt effect ──────────────────────────────────────
+  // Protected region — do not modify logic, only UI around it may change.
   const confirmedForTx = useRef<`0x${string}` | null>(null)
   useEffect(() => {
     if (!isSuccess || !receiptData || confirmedForTx.current === receiptData.transactionHash) return
@@ -133,6 +173,8 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     if (!matchedHash) return
     confirmedForTx.current = receiptData.transactionHash
     const paymentScopeKey = receiptScopeKey(pending)
+    // Persist confirmed hash as a candidate for future visits (hash-only, not proof).
+    saveVerifiedHints(pending, [matchedHash, ...loadStoredHints(pending)])
     setSessionReceiptHashes(prev => ({
       ...prev,
       [paymentScopeKey]: { ...(prev[paymentScopeKey] ?? {}), [pending.payer]: matchedHash },
@@ -140,59 +182,323 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     if (paymentScopeKey === scopeKey) void refetch()
   }, [isSuccess, receiptData, submittedTxHash, refetch, scopeKey])
 
-  // ── log query ────────────────────────────────────────────────────
-  const [logsFetchToken, setLogsFetchToken] = useState(0)
+  // ── sequenced hint → invalidation → log scan ─────────────────────
+  //
+  // Design invariants:
+  //   1. Hint discovery runs FIRST and completes before fallback log scan starts.
+  //   2. On ANY hint RPC error or conflict: set paused status and RETURN — zero
+  //      fallback getLogs calls after such failure.
+  //   3. Hashes in historiesRef/histories/sessionReceiptHashes that fail re-verification
+  //      are removed from ALL maps before the scan reads them.
+  //   4. When a previously-scanned range had an invalidated hash removed, that scope's
+  //      history cursor is reset so the range can be re-scanned.
+  //   5. The fallback log scan's trusted "already found" set is the current-run fresh
+  //      verification result only — not old history.receipts or session hashes.
+  //   6. Fresh fallback scan discoveries are saved as hash-only hints for future visits.
+  //   7. freshVerifiedRef is scoped to a context key and reset before every early return
+  //      and at the start of each run.
+  //   8. Prior RAM hashes (historiesRef + session) are included as untrusted candidates
+  //      alongside catalog/storage/URL hints (≤15 total, source limits apply).
+  //   9. Confirmed payment hashes from this session also become untrusted hint candidates
+  //      (hash-only, without changing any pay hook arguments).
+  //  10. Raw RPC error messages never reach the UI — concise retry messages only.
+  //
   const billReadKey = billData
-    ? `${billData[3]}:${billData[2].map((payer, index) => `${payer.toLowerCase()}:${billData[4][index]}`).join(',')}`
+    ? `${billData[3]}:${billData[2].map((p, i) => `${p.toLowerCase()}:${billData[4][i]}`).join(',')}`
     : ''
 
   useEffect(() => {
     if (!isContractDeployed || !publicClient || !billData) return
-    let cancelled = false
-    const paidPayers = billData[2].filter((_, index) => billData[4][index])
+    if (!publicClient.chain || publicClient.chain.id !== ARC_TESTNET_CHAIN_ID) return
+
+    const paidPayers = billData[2].filter((_, i) => billData[4][i])
+    const paidPayersLc = paidPayers.map(p => p.toLowerCase())
+    const scope = { chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS, billId }
+    const contextKey = makeFreshContextKey(scopeKey, paidPayersLc, scanToken)
+
+    // Reset fresh-verified ref before any early return.
+    freshVerifiedRef.current = { contextKey, receipts: {} }
+
     if (paidPayers.length === 0) return
-    const fetchLogs = async () => {
+
+    // Cancel any prior in-flight run.
+    scanCancelRef.current?.()
+    let cancelled = false
+    scanCancelRef.current = () => { cancelled = true }
+
+    // ── Phase 1: hint fast-path ──────────────────────────────────────
+    const runHintPhase = async (): Promise<{
+      fresh: Record<string, HintHash>
+      invalidated: HintHash[]
+      rpcError: string | null
+    }> => {
+      const emptyResult = { fresh: {}, invalidated: [] as HintHash[], rpcError: null }
+
+      // Assemble candidates from all sources including prior RAM hashes (untrusted).
+      // Prior RAM hashes: historiesRef + session for this scope, normalised, capped at 5.
+      const priorHistory = historiesRef.current[scopeKey]
+      const priorRAMHashes: HintHash[] = []
+      const seenPrior = new Set<string>()
+      const addPrior = (raw: string) => {
+        const n = normaliseHash(raw)
+        if (n && !seenPrior.has(n) && priorRAMHashes.length < 5) { seenPrior.add(n); priorRAMHashes.push(n) }
+      }
+      for (const h of Object.values(priorHistory?.receipts ?? {})) addPrior(h)
+      for (const h of Object.values(sessionReceiptHashes[scopeKey] ?? {})) addPrior(h)
+      // assembleCandidates places priorRAMHashes between catalog and storage/URL,
+      // so they cannot be truncated by a full catalog and do not outrank it.
+      const candidates: HintHash[] = [
+        ...assembleCandidates(scope, window.location.search, priorRAMHashes),
+      ]
+
+      if (candidates.length === 0) return emptyResult
+      if (cancelled) return emptyResult
+
+      setHintStatus(prev => ({ ...prev, [scopeKey]: { loading: true } }))
+
+      const result = await discoverReceiptsFromHints({
+        client: publicClient as Parameters<typeof discoverReceiptsFromHints>[0]['client'],
+        scope,
+        candidates,
+        paidPayers: paidPayersLc,
+        amount: billData[3],
+        isCancelled: () => cancelled,
+        onProgress: partial => {
+          if (cancelled) return
+          const filtered: Record<string, HintHash> = {}
+          for (const [payer, hash] of Object.entries(partial.receipts)) {
+            if (paidPayersLc.includes(payer)) filtered[payer] = hash as HintHash
+          }
+          setFreshHintHashes(prev => ({ ...prev, [scopeKey]: filtered }))
+        },
+      })
+
+      if (cancelled) return emptyResult
+
+      // Final fresh set: only current paid payers, at most 5.
+      const fresh: Record<string, HintHash> = {}
+      let count = 0
+      for (const [payer, hash] of Object.entries(result.receipts)) {
+        if (paidPayersLc.includes(payer) && count < 5) {
+          fresh[payer] = hash as HintHash
+          count++
+        }
+      }
+
+      setFreshHintHashes(prev => ({ ...prev, [scopeKey]: fresh }))
+      setHintStatus(prev => ({
+        ...prev,
+        [scopeKey]: { loading: false, rpcError: result.rpcError ?? undefined },
+      }))
+
+      // Persist verified hashes on clean success for future visits.
+      if (!result.rpcError && result.complete) {
+        const verified = Object.values(fresh) as HintHash[]
+        if (verified.length > 0) saveVerifiedHints(scope, verified)
+      }
+
+      // Update scoped freshVerifiedRef — used ONLY by handleCopyLink.
+      if (!result.rpcError) {
+        freshVerifiedRef.current = { contextKey, receipts: { ...fresh } }
+      } else {
+        // On any error/conflict: clear fresh — do not share ambiguous hashes.
+        freshVerifiedRef.current = { contextKey, receipts: {} }
+      }
+
+      return { fresh, invalidated: result.invalidatedHashes, rpcError: result.rpcError }
+    }
+
+    // ── Phase 2: invalidation sweep ──────────────────────────────────
+    // Removes explicitly invalidated hashes from all in-memory maps.
+    // For paid payers with a fresh verified result, removes any prior mismatching hash.
+    // When an invalidated hash is removed from a scanned range, resets the cursor
+    // for that scope so the range is re-scannable.
+    const runInvalidationSweep = (
+      fresh: Record<string, HintHash>,
+      invalidated: HintHash[],
+    ) => {
+      if (cancelled) return
+
+      const invalidatedSet = new Set(invalidated.map(h => h.toLowerCase()))
+      const freshPayers = new Set(Object.keys(fresh))
+      let didInvalidateScannedHash = false
+
+      // Purge historiesRef and histories.
+      const existing = historiesRef.current[scopeKey]
+      if (existing && Object.keys(existing.receipts).length > 0) {
+        const cleaned: Record<string, `0x${string}`> = {}
+        for (const [payer, hash] of Object.entries(existing.receipts)) {
+          const hashLc = hash.toLowerCase()
+          if (invalidatedSet.has(hashLc)) { didInvalidateScannedHash = true; continue }
+          if (freshPayers.has(payer) && fresh[payer]?.toLowerCase() !== hashLc) { didInvalidateScannedHash = true; continue }
+          cleaned[payer] = hash
+        }
+        if (Object.keys(cleaned).length !== Object.keys(existing.receipts).length) {
+          // If a hash was removed that was discovered in a previously scanned range,
+          // reset the cursor so that range is re-scannable on next scan.
+          const updated: ReceiptHistory = didInvalidateScannedHash
+            ? newReceiptHistory(scope, SPLIT_RECEIPT_DEPLOY_BLOCK)
+            : { ...existing, receipts: cleaned }
+          if (didInvalidateScannedHash) {
+            // Carry forward the remaining clean receipts into the fresh history.
+            updated.receipts = cleaned
+          }
+          historiesRef.current[scopeKey] = updated
+          setHistories(prev => ({ ...prev, [scopeKey]: updated }))
+        }
+      }
+
+      // Purge sessionReceiptHashes.
+      setSessionReceiptHashes(prev => {
+        const scopeSession = prev[scopeKey]
+        if (!scopeSession) return prev
+        const cleaned: Record<string, `0x${string}`> = {}
+        for (const [payer, hash] of Object.entries(scopeSession)) {
+          const hashLc = hash.toLowerCase()
+          if (invalidatedSet.has(hashLc)) continue
+          if (freshPayers.has(payer) && fresh[payer]?.toLowerCase() !== hashLc) continue
+          cleaned[payer] = hash
+        }
+        if (Object.keys(cleaned).length === Object.keys(scopeSession).length) return prev
+        return { ...prev, [scopeKey]: cleaned }
+      })
+    }
+
+    // ── Phase 3: fallback log scan ────────────────────────────────────
+    // Starts only after hint phase completes with NO rpc error or conflict.
+    // Prior scan outputs are kept as untrusted candidates for retry; they are never
+    // trusted as already-verified. New scan hashes MUST pass the receipt+canonical
+    // RPC verifier before Copy/cache/verified counts. On-page candidate retention
+    // deliberately avoids losing successful-page progress when later receipt RPC pauses.
+    const runLogScan = async (fresh: Record<string, HintHash>) => {
+      if (cancelled) return
+      const remainingPaidPayers = paidPayers.filter(p => !fresh[p.toLowerCase()])
+      if (remainingPaidPayers.length === 0) {
+        setHistoryStatus(prev => ({ ...prev, [scopeKey]: { loading: false } }))
+        return
+      }
+      const pause = () => {
+        if (cancelled || freshVerifiedRef.current.contextKey !== contextKey) return
+        freshVerifiedRef.current = { contextKey, receipts: {} }
+        setFreshHintHashes(prev => ({ ...prev, [scopeKey]: {} }))
+        setHistoryStatus(prev => ({ ...prev, [scopeKey]: {
+          loading: false, error: 'Receipt lookup paused. Check your connection and retry.',
+        } }))
+      }
+      const publishCandidates = (history: ReceiptHistory) => {
+        if (cancelled || freshVerifiedRef.current.contextKey !== contextKey) return
+        // These hashes are candidates/display links only until the verifier finishes.
+        historiesRef.current[scopeKey] = history
+        setHistories(prev => ({ ...prev, [scopeKey]: history }))
+      }
       setHistoryStatus(prev => ({ ...prev, [scopeKey]: { loading: true } }))
       try {
-        if (publicClient.chain?.id !== ARC_TESTNET_CHAIN_ID) throw new Error('Receipt lookup requires Arc Testnet.')
+        const liveChainId = await publicClient.getChainId()
+        if (cancelled || freshVerifiedRef.current.contextKey !== contextKey) return
+        if (liveChainId !== ARC_TESTNET_CHAIN_ID) { pause(); return }
         const head = await publicClient.getBlockNumber()
-        if (cancelled) return
-        const startingHistory = historiesRef.current[scopeKey] ?? newReceiptHistory(
-          { chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS, billId },
-          SPLIT_RECEIPT_DEPLOY_BLOCK
-        )
-        const publish = (history: ReceiptHistory) => {
-          if (cancelled) return
-          historiesRef.current[scopeKey] = history
-          setHistories(prev => ({ ...prev, [scopeKey]: history }))
-        }
+        if (cancelled || freshVerifiedRef.current.contextKey !== contextKey) return
+        const oldRange = historiesRef.current[scopeKey] ?? newReceiptHistory(scope, SPLIT_RECEIPT_DEPLOY_BLOCK)
+        // Crucial: preserve range progress, replace trusted receipts with fresh proof ONLY.
+        const startingHistory: ReceiptHistory = { ...oldRange, receipts: { ...fresh } }
         const result = await scanReceiptHistoryBatch({
-          history: startingHistory, head,
-          payers: billData[2], paidPayers,
+          history: startingHistory,
+          head,
+          payers: billData[2],
+          paidPayers: remainingPaidPayers,
           amount: billData[3],
           isCancelled: () => cancelled,
-          onPage: publish,
+          onPage: publishCandidates,
           fetchLogs: range => publicClient.getLogs({
-            address: SPLIT_RECEIPT_ADDRESS, event: SHARE_PAID_EVENT, args: { billId }, strict: true, ...range,
+            address: SPLIT_RECEIPT_ADDRESS,
+            event: SHARE_PAID_EVENT,
+            args: { billId },
+            strict: true,
+            ...range,
           }),
         })
-        if (cancelled) return
-        publish(result.history)
-        setHistoryStatus(prev => ({ ...prev, [scopeKey]: { loading: false, error: result.error?.message } }))
-      } catch (error) {
-        if (!cancelled) setHistoryStatus(prev => ({
-          ...prev, [scopeKey]: { loading: false, error: error instanceof Error ? error.message : 'RPC unavailable.' },
-        }))
+        if (cancelled || freshVerifiedRef.current.contextKey !== contextKey) return
+        publishCandidates(result.history)
+        if (result.error) { pause(); return }
+        const rawHashes = Object.values(result.history.receipts)
+        const candidates = rawHashes.map(normaliseHash).filter((h): h is HintHash => h !== null)
+        if (candidates.length !== rawHashes.length) {
+          const reopened = newReceiptHistory(scope, SPLIT_RECEIPT_DEPLOY_BLOCK)
+          reopened.receipts = { ...fresh }
+          publishCandidates(reopened)
+          pause()
+          return
+        }
+        if (candidates.length === 0) {
+          setHistoryStatus(prev => ({ ...prev, [scopeKey]: { loading: false } }))
+          return
+        }
+        const checked = await discoverReceiptsFromHints({
+          client: publicClient as Parameters<typeof discoverReceiptsFromHints>[0]['client'],
+          scope,
+          candidates,
+          paidPayers: paidPayersLc,
+          amount: billData[3],
+          isCancelled: () => cancelled,
+        })
+        if (cancelled || freshVerifiedRef.current.contextKey !== contextKey) return
+        const confirmed: Record<string, HintHash> = {}
+        for (const [payer, hash] of Object.entries(checked.receipts)) {
+          if (paidPayersLc.includes(payer)) confirmed[payer] = hash as HintHash
+        }
+        // Purge explicit invalid/orphaned hashes even if a later RPC call failed.
+        runInvalidationSweep(confirmed, checked.invalidatedHashes)
+        if (checked.rpcError) { pause(); return }
+        // A sweep may have rewound the range, so do not overwrite it with result.history.
+        const checkedRange = historiesRef.current[scopeKey] ?? result.history
+        publishCandidates({ ...checkedRange, receipts: { ...confirmed } })
+        freshVerifiedRef.current = { contextKey, receipts: { ...confirmed } }
+        setFreshHintHashes(prev => ({ ...prev, [scopeKey]: confirmed }))
+        if (Object.keys(confirmed).length > 0) saveVerifiedHints(scope, Object.values(confirmed))
+        setHistoryStatus(prev => ({ ...prev, [scopeKey]: { loading: false } }))
+      } catch {
+        pause()
       }
     }
-    void fetchLogs()
-    return () => { cancelled = true }
-  }, [billId, scopeKey, billReadKey, isContractDeployed, publicClient, logsFetchToken])
 
-  // ── refresh ─────────────────────────────────────────────────────
+    // ── Orchestrate phases sequentially ──────────────────────────────
+    const run = async () => {
+      const { fresh, invalidated, rpcError: hintRpcError } = await runHintPhase()
+      if (cancelled) return
+
+      // RPC is reachable if no error, OR if we got some invalidated hashes
+      // (which required RPC responses). This allows the sweep to run on partial results.
+      const rpcReachable = hintRpcError === null || invalidated.length > 0
+      if (rpcReachable) {
+        runInvalidationSweep(fresh, invalidated)
+      }
+      if (cancelled) return
+
+      // CRITICAL: If hint phase had an RPC error or conflict, do NOT start the
+      // fallback log scan. Set a paused status and return.
+      if (hintRpcError !== null) {
+        setHistoryStatus(prev => ({
+          ...prev,
+          [scopeKey]: { loading: false, error: 'Receipt scan paused after lookup error. Retry to continue.' },
+        }))
+        return
+      }
+
+      await runLogScan(fresh)
+    }
+
+    void run()
+
+    return () => { cancelled = true }
+  // billReadKey encodes share + payer paid-states; changes when a new payment confirms.
+  // scanToken is bumped by handleRefresh to force a fresh run.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billId, scopeKey, billReadKey, isContractDeployed, publicClient, scanToken])
+
+  // ── refresh ──────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
     void refetch()
-    setLogsFetchToken(t => t + 1)
+    setScanToken(t => t + 1)
   }, [refetch])
 
   const handleRetryFullHistory = useCallback(() => {
@@ -201,19 +507,35 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
       { chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS, billId },
       SPLIT_RECEIPT_DEPLOY_BLOCK
     )
+    // Carry forward receipts that survived the last invalidation sweep.
     history.receipts = { ...(previous?.receipts ?? {}) }
     historiesRef.current[scopeKey] = history
     setHistories(prev => ({ ...prev, [scopeKey]: history }))
     void refetch()
-    setLogsFetchToken(t => t + 1)
+    setScanToken(t => t + 1)
   }, [billId, scopeKey, refetch])
 
-  // ── copy link ───────────────────────────────────────────────────
+  // ── copy link ────────────────────────────────────────────────────
+  // Uses ONLY freshVerifiedRef when context key matches the current render.
+  // Never uses the merged receiptHashes display map.
   const handleCopyLink = useCallback(() => {
-    const url = new URL(window.location.href)
-    url.searchParams.set('bill', billId.toString())
+    // Compute context key synchronously from current render state.
+    const paidPayersLc = billData
+      ? billData[2].filter((_, i) => billData[4][i]).map(p => p.toLowerCase())
+      : []
+    const currentContextKey = makeFreshContextKey(scopeKey, paidPayersLc, scanToken)
+    const fresh = freshVerifiedRef.current
+    // Only use fresh hashes if the context key matches — prevents stale hint leakage
+    // after bill navigation, wallet switch, or mid-render refresh.
+    const verifiedHashes: HintHash[] = fresh.contextKey === currentContextKey
+      ? (Object.entries(fresh.receipts)
+          .filter(([payer]) => paidPayersLc.includes(payer))
+          .map(([, hash]) => hash)
+          .slice(0, 5))
+      : []
+    const url = buildShareUrl(billId, verifiedHashes)
     setCopyError('')
-    navigator.clipboard.writeText(url.toString())
+    navigator.clipboard.writeText(url)
       .then(() => {
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
@@ -222,9 +544,10 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
         setCopyError('Could not copy. Please copy the URL from the address bar.')
         setTimeout(() => setCopyError(''), 4000)
       })
-  }, [billId])
+  }, [billId, billData, scopeKey, scanToken])
 
-  // ── pay ─────────────────────────────────────────────────────────
+  // ── pay ──────────────────────────────────────────────────────────
+  // Protected region — do not modify.
   const handlePay = useCallback(() => {
     if (!billData || !address || isWrongChain || isPending || isConfirming) return
     reset()
@@ -245,7 +568,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     }, { onSuccess: hash => { pending.submittedHash = hash } })
   }, [billData, billId, writeContract, reset, address, isWrongChain, isPending, isConfirming])
 
-  // ── derived state ────────────────────────────────────────────────
+  // ── derived state ─────────────────────────────────────────────────
   let myIndex = -1, myPaidState = false, totalPaid = 0
   let payers: readonly `0x${string}`[] = []
   let paidStates: readonly boolean[] = []
@@ -254,13 +577,22 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
 
   const history = histories[scopeKey]
   const logStatus = historyStatus[scopeKey]
+  const currentHintStatus = hintStatus[scopeKey]
+  const currentFreshHints = freshHintHashes[scopeKey] ?? {}
   const isCurrentPayment = Boolean(
     paymentContext &&
     receiptScopeKey(paymentContext) === scopeKey &&
     paymentContext.payer === address?.toLowerCase()
   )
-  const receiptHashes: Record<string, `0x${string}`> =
-    { ...(history?.receipts ?? {}), ...(sessionReceiptHashes[scopeKey] ?? {}) }
+
+  // Display map: merges log-scan receipts, fresh hint receipts, session receipts.
+  // Used ONLY for "View receipt" link display — NOT for copy-link URL building.
+  const receiptHashes: Record<string, `0x${string}`> = {
+    ...(history?.receipts ?? {}),
+    ...currentFreshHints,
+    ...(sessionReceiptHashes[scopeKey] ?? {}),
+  }
+
   const isConfirmedPayment = Boolean(
     isSuccess && receiptData?.status === 'success' && isCurrentPayment && address &&
     receiptHashes[address.toLowerCase()] === receiptData.transactionHash
@@ -276,7 +608,24 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     shareDisplay = fmtNativeUsdc(share)
   }
 
-  const verifiedPaidCount = payers.filter((p, i) => paidStates[i] && Boolean(receiptHashes[p.toLowerCase()])).length
+  const isAnyLookupLoading = Boolean(currentHintStatus?.loading || logStatus?.loading)
+
+  // verifiedPaidCount and allPaidReceiptsFound derive ONLY from freshVerifiedRef when
+  // its context key matches the current render scope + paid snapshot + scan generation.
+  // Display-only links (historiesRef/session) must NOT inflate the verified count.
+  const renderContextKey = billData
+    ? makeFreshContextKey(
+        scopeKey,
+        billData[2].filter((_, i) => billData[4][i]).map(p => p.toLowerCase()),
+        scanToken,
+      )
+    : ''
+  const freshMatchesRender = freshVerifiedRef.current.contextKey === renderContextKey
+  const freshVerified = freshMatchesRender ? freshVerifiedRef.current.receipts : {}
+
+  const verifiedPaidCount = payers.filter((p, i) =>
+    paidStates[i] && Boolean(freshVerified[p.toLowerCase()])
+  ).length
   const allPaidReceiptsFound = totalPaid > 0 && verifiedPaidCount === totalPaid
   const allHistorySearched = Boolean(history && historyRangeComplete(history))
   const olderBlocksRemain = Boolean(history?.scannedFrom !== null && history?.scannedFrom !== undefined && history.scannedFrom > history.floor)
@@ -409,7 +758,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
                 <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: allPaidReceiptsFound ? 'var(--success)' : 'var(--muted)' }}>
                   {allPaidReceiptsFound
                     ? <><CheckCircle2 size={13} aria-hidden="true" /> {verifiedPaidCount} of {totalPaid} payment receipts verified</>
-                    : logStatus?.loading
+                    : isAnyLookupLoading
                       ? <><div className="spinner" style={{ width: '12px', height: '12px' }} aria-hidden="true" /> Looking up receipts…</>
                       : <>{verifiedPaidCount} of {totalPaid} payment receipts verified</>
                   }
@@ -432,7 +781,10 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
               {payers.map((p, i) => {
                 const isMe = p.toLowerCase() === address?.toLowerCase()
                 const paid = paidStates[i]
-                const payerReceiptHash = receiptHashes[p.toLowerCase()]
+                const payerLc = p.toLowerCase()
+                const payerReceiptHash = receiptHashes[payerLc]
+                const isVerifiedFresh = paid && Boolean(freshVerified[payerLc])
+                const isDisplayOnly = paid && Boolean(payerReceiptHash) && !isVerifiedFresh
                 const payerTxUrl = paid && payerReceiptHash
                   ? `${chain.explorerBase}/tx/${payerReceiptHash}`
                   : null
@@ -468,18 +820,25 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
                       </div>
                       <div className="min-w-[110px] text-right">
                         {payerTxUrl ? (
-                          <a
-                            href={payerTxUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex min-h-[44px] items-center gap-1 text-sm font-medium"
-                            style={{ color: 'var(--accent-hover)' }}
-                          >
-                            View receipt <ExternalLink size={12} aria-hidden="true" />
-                          </a>
+                          <div className="inline-flex flex-col items-end gap-0.5">
+                            <a
+                              href={payerTxUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex min-h-[44px] items-center gap-1 text-sm font-medium"
+                              style={{ color: 'var(--accent-hover)' }}
+                            >
+                              View receipt <ExternalLink size={12} aria-hidden="true" />
+                            </a>
+                            {isDisplayOnly && (
+                              <span className="text-xs" style={{ color: 'var(--subtle)' }}>
+                                awaiting verification
+                              </span>
+                            )}
+                          </div>
                         ) : paid ? (
                           <span className="text-xs" style={{ color: 'var(--subtle)' }}>
-                            {logStatus?.loading ? 'Looking up…' : '—'}
+                            {isAnyLookupLoading ? 'Looking up…' : '—'}
                           </span>
                         ) : null}
                       </div>
@@ -511,15 +870,22 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
                             : <span className="badge-unpaid text-xs">Unpaid</span>
                           }
                           {payerTxUrl && (
-                            <a
-                              href={payerTxUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex min-h-[44px] items-center gap-1 text-sm font-medium"
-                              style={{ color: 'var(--accent-hover)' }}
-                            >
-                              View receipt <ExternalLink size={11} aria-hidden="true" />
-                            </a>
+                            <div className="flex flex-col gap-0.5">
+                              <a
+                                href={payerTxUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex min-h-[44px] items-center gap-1 text-sm font-medium"
+                                style={{ color: 'var(--accent-hover)' }}
+                              >
+                                View receipt <ExternalLink size={11} aria-hidden="true" />
+                              </a>
+                              {isDisplayOnly && (
+                                <span className="text-xs" style={{ color: 'var(--subtle)' }}>
+                                  awaiting verification
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -573,6 +939,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
                     <p className="text-xs" style={{ color: 'var(--muted)' }}>
                       {verifiedPaidCount} of {totalPaid} paid receipt{totalPaid === 1 ? '' : 's'} verified onchain.
                       {logStatus?.loading && ' Scanning blocks…'}
+                      {currentHintStatus?.loading && !logStatus?.loading && ' Checking known transactions…'}
                     </p>
 
                     {history?.scannedFrom !== null && history?.scannedFrom !== undefined && history.scannedTo !== null && (
@@ -586,19 +953,25 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
                       </p>
                     )}
 
-                    {logStatus?.error && (
-                      <p className="text-xs" style={{ color: 'var(--danger)' }} role="alert">
-                        Lookup paused — verified links are kept. {logStatus.error}
+                    {currentHintStatus?.rpcError && (
+                      <p className="text-xs" style={{ color: 'var(--muted)' }} role="alert">
+                        Fast-path lookup paused — existing links kept. {currentHintStatus.rpcError}
                       </p>
                     )}
 
-                    {!logStatus?.loading && !logStatus?.error && allHistorySearched && !allPaidReceiptsFound && (
+                    {logStatus?.error && (
+                      <p className="text-xs" style={{ color: 'var(--danger)' }} role="alert">
+                        {logStatus.error}
+                      </p>
+                    )}
+
+                    {!isAnyLookupLoading && !logStatus?.error && allHistorySearched && !allPaidReceiptsFound && (
                       <p className="text-xs" style={{ color: 'var(--subtle)' }}>
                         Some receipts were not returned by this RPC. The event index may still be catching up. Retry or check the explorer.
                       </p>
                     )}
 
-                    {!logStatus?.loading && (!allPaidReceiptsFound || logStatus?.error) && (
+                    {!isAnyLookupLoading && (!allPaidReceiptsFound || logStatus?.error) && (
                       <button
                         type="button"
                         onClick={allHistorySearched && !logStatus?.error ? handleRetryFullHistory : handleRefresh}
