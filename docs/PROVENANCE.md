@@ -44,6 +44,22 @@ The INITIAL/HISTORICAL dedicated release checkpoint (`20261018T080938Z-dd5013b`)
 
 **Future source/UI/docs changes must happen in Studio, followed by export, independent verification, build and publication.**
 
+## Light/forest UI redesign (21 October)
+
+The current release reflects a full light/forest UI redesign authored in Arc Studio across two Studio sessions:
+
+**Session 1 (design):** Arc Studio authored all six UI/design files (`src/index.css`, `src/App.tsx`, `src/components/CreateBill.tsx`, `src/components/BillDetails.tsx`, `src/components/WalletChecks.tsx`, `docs/DESIGN.md`). The visual reference was a screenshot from the owner's own local ReCart project, used as a layout/workflow reference only — no shared code, dependencies or data. The six files were exported and adopted as exact bytes by independent verification.
+
+**Session 2 (presentation corrections):** Five targeted CSS/JSX corrections were applied in Studio: narrow-viewport mobile nav icon hide at ≤419px; bill totals named CSS class replacing `break-all` with `overflow-wrap: anywhere`; Create bill receipt preview always visible (no `hidden lg:block`); CSS token aliases `--muted` and `--surface-raised` required by frozen `wallet-ui.tsx`; `section[role="dialog"] h2` font override to cover the frozen wallet dialog's inline serif style. `docs/DESIGN.md` contrast ratios, breakpoints, touch targets and wallet dialog typography notes were corrected. All non-UI files (contract, tests, helpers, receipt logic, config, packages) were unchanged.
+
+The final ZIP SHA-256 `b92cfe708d31acb756301b85eab742984ff50f0b5ab3830ec936ae4668181e14` covers the output of both sessions as independently verified before publication.
+
+At the start of one or more Studio sessions, `src/onchain-facts.ts` was found with different bytes (the 16,223-byte generated version, hash `c7c314a…`) rather than the canonical strict version. The cause and triggering mechanism are not established. On each occasion, the canonical 1,080-byte version was restored by explicit write in Studio and hash-verified before the session's work was finalised. `src/onchain-money.ts` and `src/onchain-wait.ts` were also found present after having been deleted on the same occasions; cause unconfirmed. See Observed helper mismatches above.
+
+Independent verification of the 21 October release: typecheck clean, 36/36 frontend tests pass, production build success, dependency isolation passed; desktop/mobile layouts at 360/390/768/1024px verified via local QA; live browser on 21 October 2026 returned Bill 3 Settled 2/2, 2/2 freshly verified receipts. Release published as commit `003f005b4030f664dfb95f9ccc79205f14e92b27`, label `20261021T071846Z-003f005`.
+
+**Future source/UI/docs changes must happen in Studio, followed by export, independent verification, build and publication.**
+
 ## Bill 3 provenance
 
 Bill 3 was created and settled on Arc Testnet 5042002 at contract `0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26`. Title: Published UI retest - testnet. Recipient: `0x7c50fF360EE4Ee53097ADFb6D0a464c2E9F77336`. Payers (ordered): `0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74` and `0x92F6772880Bc6FFe9F8112E5F202bB7eC5428B6e`. Each share: 0.001 native test USDC, total 0.002.
@@ -71,3 +87,18 @@ The public release is restricted to Arc Testnet. Mainnet deployment, mainnet pay
 The original contract carries an MIT SPDX identifier. The repository's original application code and documentation are distributed under [LICENSE](../LICENSE). Vendored and installed dependencies retain their own notices and licenses.
 
 Arc Studio and Circle are acknowledged as development tools and network providers. This application is an independent project; no Circle approval or endorsement is claimed.
+
+
+## Unpublished mainnet adaptation (21 October 2026)
+
+The public release remains commit `003f005b4030f664dfb95f9ccc79205f14e92b27`, label `20261021T071846Z-003f005`. This session's adaptation is unpublished. It preserves Arc Testnet `5042002` and its historical deployment/receipts, while preparing a separate Arc mainnet `5042` context with a blank deployment address. `MAINNET_WRITES_ENABLED = false` is a compiled source-level release lock: an address, environment variable, URL parameter, cached check or mainnet wallet cannot enable writes. Future enabling requires a separately reviewed source change and explicit authorization; no mainnet deployment or onchain write/broadcast is part of this preparation.
+
+For this session, Codex prepared source inputs outside Studio; the actual project changes are applied through Arc Studio's official manual terminal. The Studio agent daily quota was observed at 99%. The available manual terminal path is used without a paid upgrade. This records where the files were actually changed and does not claim that Studio AI generated every source file, erase earlier local contributions or establish organizer acceptance of that provenance.
+
+An observed **Download Code** archive was an older snapshot rather than the latest terminal state. Current source acceptance therefore uses an exact terminal export, followed by byte-for-byte comparison and independent validation. The archive, terminal export and public release are separate states. Record exact export hashes, adopted paths and any approved sandbox-only differences after readback; do not present an old download hash as the current source snapshot.
+
+At this session's starting Studio baseline, typecheck, 36 TypeScript tests, 35 Solidity tests and the production build were observed to pass. These are baseline observations. **Final adaptation in Studio: typecheck, 67 TypeScript tests, 38 Solidity tests, 256 fuzz runs, production build, dependency isolation and offline unsigned-bundle generation passed. Exact terminal export and independent local typecheck, 67 TypeScript tests, 38 Solidity tests, 256 fuzz runs, build and dependency isolation passed. Local browser checks confirmed the disabled mainnet preview, wrong-context recovery and preserved legacy testnet Bill 3 with 2/2 freshly verified receipts. Live wallet connection/signing was not retested; one external wallet-extension injection error was observed. See tests/evidence/mainnet-preparation-2026-10-21.json.** No deployed state is asserted. Tests that set `vm.chainId(5042)` and fund accounts with `vm.deal` are local EVM tests, with no mainnet, fork, RPC, signature or broadcast implied by that chain ID.
+
+The offline deployment preparation tool validates pinned source/dependency identity and compiler settings, then records the actual fresh artifact, creation bytecode and runtime hashes. Its status remains `UNSIGNED_NOT_DEPLOYED_REQUIRES_INDEPENDENT_REVIEW`. The fresh runtime may differ from the historical testnet runtime because source/remapping paths and compiler metadata affect bytecode. `historicalRuntimeExactMatch: false` is a disclosed comparison result, not a reviewed-equivalence claim; neither a match nor a mismatch authorizes deployment. The historical runtime hash must not be relabelled as the reviewed hash of a fresh artifact. Independent artifact/bytecode review and a fresh gas/fee estimate remain necessary before any future owner-reviewed signature.
+
+Actual Studio edits, test invocations and export milestones are retained as local supporting material. Where manual milestone screenshots are assembled into a process record, they are sampled screenshots with waits compressed, not continuous footage or a final competition demonstration. Stage labels are not independent QA results. No native wallet footage, mainnet receipt, public video upload, paid upgrade or competition submission is established by this preparation. See [MAINNET-PREPARATION.md](MAINNET-PREPARATION.md) for the separate future review/signature sequence.

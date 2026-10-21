@@ -31,7 +31,31 @@ The [UI source readback](../tests/evidence/studio-ui-source-readback-2026-10-17.
 
 Studio repairs were applied to the dark UI: signature/permit wording corrected in two WalletChecks locations; mobile nav repaired for 390px; `src/onchain-facts.ts` restored to canonical content after an observed mismatch (cause unknown). Studio reported: typecheck clean, 16/16 tests pass, production build success, Preview HTTP 200. An earlier dark desktop embedded Preview was observed during this work. HTTP 200 from `curl` is not final browser-proof; final Studio mobile Preview was not validated.
 
-The dark source candidate requires independent fresh ZIP readback, local build and live-release verification. The INITIAL/HISTORICAL dedicated release checkpoint (`20261018T080938Z-dd5013b`) used the white/blue UI. As of the 18 October checkpoint, no later publication had been verified.
+The INITIAL/HISTORICAL dedicated release checkpoint (`20261018T080938Z-dd5013b`) used the white/blue UI.
+
+## Light/forest UI redesign and presentation corrections (21 October 2026)
+
+The current app release reflects the light/forest redesign authored in Arc Studio. Six UI/design files were adopted from the Studio export as exact bytes. A second Studio session applied five targeted presentation fixes: narrow-viewport mobile nav (≤419px icon hide), bill totals CSS class replacing `break-all` with `overflow-wrap: anywhere`, Create bill receipt preview visible on all screen widths, CSS token aliases (`--muted`, `--surface-raised`) required by the frozen wallet dialog, and a correct `section[role="dialog"] h2` font override.
+
+| Check | Result | Source |
+|---|---|---|
+| Typecheck | Clean | Studio + local, current source |
+| Frontend tests | 36/36 pass | Studio + CI run `39561037667` |
+| Production build | Success | Studio + local |
+| Dependency isolation | 215 registry packages, zero external links | CI run `39561037667` |
+| UI desktop/mobile | 360/390/768/1024px verified | Independent local QA |
+| Live browser readback | Bill 3 Settled 2/2, 2/2 freshly verified | 21 October 2026 operator browser observation (existing authorized account auto-restored; no new connection or signature initiated) |
+| App release | `003f005b4030f664dfb95f9ccc79205f14e92b27`, label `20261021T071846Z-003f005` | Independent |
+| ZIP SHA-256 | `b92cfe708d31acb756301b85eab742984ff50f0b5ab3830ec936ae4668181e14` | Six UI/design files |
+| Four dist assets | 633,573 bytes | Current build |
+| `src/onchain-facts.ts` SHA-256 | `b4c45994e26e377923c5f54e706709449435af051ce89f493027f111cdf2f070` | Drifted at this docs session start; restored by explicit write during this session; verified at session end |
+| `src/wallet-ui.tsx` SHA-256 | `4d0a1e0b8712c7e9a4ca422b4a87df38c938795a01c8156a77c18e616eed93fc` | Matched at session start and end; unchanged |
+
+The `src/onchain-facts.ts` helper restore described above was a source write inside Studio (restoring the canonical 1,080-byte file after different bytes were observed; the cause of the drift is unestablished). No functional product changes were authored or adopted in this documentation session.
+
+The 20-test receipt-discovery suite covers adversarial verification: `assembleCandidates` prior-hash ordering and cap, middle-source merged cap, old RAM bypass prevention, canonical block check, RPC error handling, stale contextKey guard, warm cache re-verification, `buildShareUrl` dedup/cap/exclusion. These tests run as part of the 36-test suite in CI; the 36-test count is the current CI record for commit `003f005`. The 35 Solidity tests and 256 fuzz runs were completed 17 October 2026; contract source is unchanged since.
+
+Bill 4 create transaction (`0x0834d17d37afc7fa267bc84648e34ebdf973433b72597db5e64a75018b20d826`) succeeded on testnet under the new hostname. Direct user confirmed manual wallet approval with no malicious warning shown. This is user-reported for the createBill step only; native wallet pixels were not captured; payShare on the new domain has not been retested.
 
 ## Dedicated hosting verification (18 October 2026)
 
@@ -88,9 +112,11 @@ A rejected network-switch prompt was not exercised. Real post-broadcast nonce ac
 
 ## Public delivery and remaining boundary
 
-- Primary demo: https://splitreceipt.axiqo.xyz/splitreceipt/ (dedicated static hosting)
+- Primary demo: https://splitreceipt.axiqo.xyz/splitreceipt/ (dedicated static hosting, current release `003f005`)
 - Old GitHub Pages URL (`a252937166.github.io/splitreceipt`) is historical
-- Anonymous bill 3 reading was observed on the dedicated domain
+- Bill 3 read as Settled 2/2 with 2/2 freshly verified receipts on 21 October 2026 (direct browser observation; an existing authorized account auto-restored, with no new connection or signature initiated)
 - **Public wallet connection was observed after human handling on the old GitHub Pages hostname.** The first attempt on that host produced a MetaMask phishing warning and was cancelled. Cause remains unconfirmed. The new dedicated hostname returned `NONE` in one 18 October scan; this does not guarantee future wallet behavior or certify security. See [METAMASK-SITE-REVIEW.md](METAMASK-SITE-REVIEW.md).
+- Bill 4 create confirmed on new domain; payShare not retested on new domain.
 - Studio and browser recordings remain local, outside the source repository. No uploaded video URL is claimed.
 - Mainnet deployment, mainnet payments and competition submission have not been performed. No new transaction for redesign. No additional paid service or upgrade; testnet transactions consumed testnet gas as separately documented.
+- See [docs/submission/](submission/) for submission preparation materials.

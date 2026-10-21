@@ -4,6 +4,9 @@ import { WalletButton } from './wallet-ui'
 import CreateBill from './components/CreateBill'
 import BillDetails from './components/BillDetails'
 import WalletChecks from './components/WalletChecks'
+import { activeNetwork } from './activeNetwork'
+import { isCurrentLocationContext } from './networkContext'
+import { buildNetworkNavigationUrl } from './networkNavigation'
 
 type View =
   | { kind: 'create' }
@@ -34,6 +37,10 @@ function getViewFromUrl(): View {
 
 function setUrlBillId(billId: bigint) {
   const url = new URL(window.location.href)
+  url.searchParams.set('network', activeNetwork.key)
+  url.searchParams.set('chainId', String(activeNetwork.chainId))
+  if (activeNetwork.contract) url.searchParams.set('contract', activeNetwork.contract.toLowerCase())
+  else url.searchParams.delete('contract')
   url.searchParams.set('bill', billId.toString())
   url.searchParams.delete('receipts')
   url.hash = ''
@@ -66,18 +73,30 @@ export default function App() {
   const [view, setView] = useState<View>(getViewFromUrl)
 
   useEffect(() => {
-    const handler = () => setView(getViewFromUrl())
+    const handler = () => {
+      if (!isCurrentLocationContext(activeNetwork, window.location.href)) { window.location.reload(); return }
+      setView(getViewFromUrl())
+    }
     window.addEventListener('popstate', handler)
     return () => window.removeEventListener('popstate', handler)
   }, [])
 
   const handleBillCreated = (billId: bigint) => {
+    if (!isCurrentLocationContext(activeNetwork, window.location.href)) return
     setUrlBillId(billId)
     setView({ kind: 'details', billId })
   }
 
   const goCreate = () => { clearUrl(); setView({ kind: 'create' }) }
-  const goDemo   = () => { setUrlBillId(DEMO_BILL_ID); setView({ kind: 'details', billId: DEMO_BILL_ID }) }
+  const goDemo = () => {
+    if (!activeNetwork.isTestnet || activeNetwork.configError) {
+      const url = new URL(buildNetworkNavigationUrl(window.location.href, 'testnet'))
+      url.searchParams.set('bill', DEMO_BILL_ID.toString())
+      window.location.assign(url.toString())
+      return
+    }
+    setUrlBillId(DEMO_BILL_ID); setView({ kind: 'details', billId: DEMO_BILL_ID })
+  }
   const goChecks = () => { setUrlChecks(); setView({ kind: 'checks' }) }
   const goBack   = () => { clearUrl(); setView({ kind: 'create' }) }
 
@@ -103,7 +122,19 @@ export default function App() {
           <path d="M8 5v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
           <circle cx="8" cy="11.5" r="0.75" fill="currentColor"/>
         </svg>
-        Arc Testnet · Test USDC only · No real funds
+        <span>{activeNetwork.isTestnet ? 'Arc Testnet · Test USDC only · No real funds' : 'Arc Mainnet · Real USDC · Transactions disabled'}</span>
+        <label className="sr-only" htmlFor="app-network">App network</label>
+        <select
+          id="app-network"
+          value={activeNetwork.key}
+          onChange={event => window.location.assign(buildNetworkNavigationUrl(window.location.href, event.target.value as 'testnet' | 'mainnet'))}
+          className="rounded px-2 py-1 text-xs"
+          style={{ background: 'var(--surface)', color: 'var(--ink)', border: '1px solid var(--border)', minHeight: '36px', maxWidth: '160px' }}
+          aria-label="App network"
+        >
+          <option value="testnet">Arc Testnet</option>
+          <option value="mainnet">Arc Mainnet · preview</option>
+        </select>
       </div>
 
       {/* ── Outer shell: rail + content ────────────────────────────────── */}
@@ -161,7 +192,7 @@ export default function App() {
                 className="badge-network"
                 style={{ background: 'rgba(20,92,68,0.4)', border: '1px solid rgba(168,213,187,0.3)', color: '#A8D5BB', fontSize: '11px' }}
               >
-                Arc Testnet
+                {activeNetwork.name}
               </span>
             </div>
             <WalletButton />
@@ -218,16 +249,23 @@ export default function App() {
             </nav>
           </header>
 
+          {activeNetwork.configError && (
+            <div className="alert-warn mx-4 mt-6" role="alert">
+              <span className="flex-1">This link does not match the configured network deployment. Transactions and receipt queries are disabled.</span>
+              <a className="btn-ghost" href={buildNetworkNavigationUrl(window.location.href, 'testnet')}>Return to Arc Testnet</a>
+            </div>
+          )}
+
           {/* Content */}
           <main className="flex-1 px-4 md:px-8 py-8 md:py-10 max-w-[1120px] w-full mx-auto">
             {view.kind === 'create' && (
-              <CreateBill onBillCreated={handleBillCreated} onViewDemo={goDemo} />
+              <CreateBill key={`${activeNetwork.contextKey}:create`} onBillCreated={handleBillCreated} onViewDemo={goDemo} />
             )}
             {view.kind === 'details' && (
-              <BillDetails billId={view.billId} onBack={goBack} />
+              <BillDetails key={`${activeNetwork.contextKey}:${view.billId}`} billId={view.billId} onBack={goBack} />
             )}
             {view.kind === 'checks' && (
-              <WalletChecks onBack={goCreate} />
+              <WalletChecks key={`${activeNetwork.contextKey}:checks`} onBack={goCreate} />
             )}
           </main>
         </div>

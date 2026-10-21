@@ -6,13 +6,14 @@ import { WalletProvider } from './wallet-ui'
 import { Toaster } from 'sonner'
 import App from './App.tsx'
 import { config } from './config.ts'
+import { WALLET_RECONNECT_ON_MOUNT } from './walletPolicy'
 import './index.css'
 
 const queryClient = new QueryClient()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <WagmiProvider config={config}>
+    <WagmiProvider config={config} reconnectOnMount={WALLET_RECONNECT_ON_MOUNT}>
       <QueryClientProvider client={queryClient}>
         <WalletProvider>
           <App />

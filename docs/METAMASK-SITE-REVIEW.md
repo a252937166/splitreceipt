@@ -43,7 +43,11 @@ The official scan API `https://dapp-scanning.api.cx.metamask.io/v2/scan?url=spli
 - The application has been audited or certified as safe
 - Wallet warnings will never appear
 
-Anonymous bill reading on the dedicated domain (bill 3, settled 2/2) was observed without a wallet connection. A wallet connection on the new hostname was not independently recorded in the same way as the old hostname test.
+Anonymous bill reading on the dedicated domain (bill 3, settled 2/2) was observed without a wallet connection on 18 October 2026.
+
+A wallet connection on the new hostname was additionally exercised when a Bill 4 create transaction was submitted. The direct user confirmed that the wallet approval dialog was shown without any malicious warning. This is user-reported; native wallet pixels were not captured. This observation covers only the `createBill` approval on the new domain; a `payShare` approval on the new domain has not been retested. A single user-reported absence of a warning does not certify the hostname or application as safe.
+
+See [VALIDATION.md](VALIDATION.md) for the full current check record.
 
 ## What to do if you see a wallet security warning
 

@@ -1,0 +1,103 @@
+{
+  "checkedAt": "2026-10-21T16:56:46.681Z",
+  "status": "PREPARATION_COMPLETE_NOT_DEPLOYED",
+  "studio": {
+    "project": "https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62",
+    "method": "Codex-prepared inputs applied through official Studio manual terminal; not a claim that Studio AI generated all source",
+    "typecheck": "PASS",
+    "typescriptTests": 67,
+    "solidityTests": 38,
+    "fuzzRuns": 256,
+    "build": "PASS",
+    "dependencyIsolation": "PASS",
+    "unsignedBundle": "PASS",
+    "node": "24.21.0",
+    "exactTerminalExportSha256": "28f93fdd46c74e23566a926daf4f639294249008d7f1237f43ebdae1aea43454"
+  },
+  "independentLocal": {
+    "node": "22.23.1",
+    "typecheck": "PASS",
+    "typescriptTests": 67,
+    "solidityTests": 38,
+    "fuzzRuns": 256,
+    "build": "PASS",
+    "dependencyIsolation": "PASS",
+    "unsignedBundleVsStudioArtifact": "BYTE_IDENTICAL",
+    "ui": {
+      "mainnetDisabled": true,
+      "minimumNativeUsdcShare": "0.000001",
+      "twoPayerTotal": "0.000002",
+      "networkNavigationClearsBill": true,
+      "invalidContextBlocked": true,
+      "recoveryLink": "PASS",
+      "legacyUrl": "TESTNET",
+      "testnetBill3Paid": "2/2",
+      "testnetBill3FreshVerifiedReceipts": "2/2"
+    },
+    "walletRetest": "NOT_PERFORMED",
+    "externalWalletExtensionInjectionError": "Observed Cannot redefine property: ethereum from an injected extension script; no app-origin stack. Live wallet connection/signing was not validated."
+  },
+  "codeHashes": {
+    "src/networkContext.ts": "789eaa6c5691c67dc7e2bcc4b8c2277897e341e215f528e8c4413fd2bfae5e15",
+    "src/activeNetwork.ts": "3413243521fffe050728d32ab438282b68225511a0b11c1a12461d7c753aa11e",
+    "src/config.ts": "c0f0811bb0af0006633d354f19feb8a948a5ecdc872a998085266b6de395529e",
+    "src/onchain-facts.ts": "146a498c2fe00b4ec3d4fb1dc4b5a7732fb76d079c0d6fcb2e44b1604426483f",
+    "tools/mainnet/prepare.mjs": "d01027445cbfa626f87dd835b0e4ba1459503ef28cd73397d802842e1b6c5b23",
+    "tests/network-context.test.ts": "c747dae27ecea8ce2d7b0de77fb3a069a1c6cca1fcbf527c7aefe2354ca5a9e5",
+    "tests/mainnet-preparation.test.ts": "aa6295314a6e2829028c395256f56eac0cfa009a1cb0133e82551a9d694ecfd4",
+    "contracts/test/SplitReceiptMainnetPreparation.t.sol": "ba2f0ba059390512866564714b8c42bd056f86a80b11ece282a55f153e979b4f",
+    "tools/mainnet/prepare.d.mts": "13672c304bfe294063a0bd72fca704c39f22c48501b65b5771723b5413ff1e42",
+    "src/App.tsx": "186f0fbce8955f078fec19c3accbce37b95bf54fcf7cda35119dc66290c2e289",
+    "src/actionScope.ts": "00165fadbd20d6b1d0a8d8022adef93944924fa0186fa0c81a1441152ddc7359",
+    "src/components/BillDetails.tsx": "bbb36c156e4c1e21571f85f1d46861d24367a7c9e6dbbc1a55382c76c466a2ac",
+    "src/components/CreateBill.tsx": "35e2d0c2f90498f9f2cb07ddc51e11bddfcf1fc6b505ba00efbddaff50d535d5",
+    "src/components/WalletChecks.tsx": "94beb58bcd09467265881dc3831fbdbaf3a43f96dabe8fd36deb3aa1d7787be2",
+    "src/creationRetry.ts": "ad4b512856a07b351b73af1a7ea0130b130087ae460e0fb6d7bae185da30b99e",
+    "src/networkNavigation.ts": "e271cb4343f7d797e3ffb515bdcfbdd66e2648f1648a55a110b09cb138f7dbe6",
+    "src/receiptHints.ts": "5daec0629428660f88ea9053d3d7e702ed80006a6f61cdf81cde975600ad9ef0",
+    "src/useActionScope.ts": "d7d62ae0d84dde8a65a990e63ca5cf95c359b2250cdcabac82d350fa0d203639",
+    "src/useDeploymentReadiness.ts": "a98b23d03a9c8b8a65256f493f71fc8309c1d9d171276281e522c939fda2d97a",
+    "src/wallet-ui.tsx": "3cace083bddb0adcf78288c3e6f7cc36392ab411200d1b0836168fac4894e24e",
+    "tests/action-scope.test.ts": "d132dee1873a76f36d48036c612901d52fe4b077b6f2a83d76ccd97ddf99c51a",
+    "tests/creation-retry.test.ts": "44cb2fe2ee8cdf8dcb14d1c343047cf2c6f8971ed578814cb93234d9c269ede6"
+  },
+  "protectedHashes": {
+    "protected/contracts/SplitReceipt.sol": "df06d8d017fc9170f39eeb08d38f5f7f5dbcbd4b4e34a8542cc3eaa216d504c2",
+    "protected/package.json": "7960fc24d14c9bec0ddba447757f2c53583bedf9f31a230ad535fea0d8298fc6",
+    "protected/package-lock.json": "71e263e58efab869ca054f3a1a1ad8e0260a95ded5d7dc7cb47492459558a025",
+    "protected/foundry.toml": "66e24e0119f2ab89a6410094a11a9d8752ed244baf9e2cb3eee5cbb44805881c"
+  },
+  "network": {
+    "default": "testnet",
+    "testnetChainId": 5042002,
+    "testnetContract": "0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26",
+    "mainnetChainId": 5042,
+    "mainnetAddress": null,
+    "mainnetWritesEnabled": false
+  },
+  "unsignedDraft": {
+    "status": "UNSIGNED_NOT_DEPLOYED_REQUIRES_INDEPENDENT_REVIEW",
+    "transactionSha256": "8e1ab44b752e8bbe4c7b5055d2b186e2fd189beddf73d382e9124f62411299bc",
+    "runtimeHash": "0x93454cc56d1f8531f7d506ff22ccbfeefe1b34913c0f688910ee2a20e7bfd18b",
+    "historicalRuntimeExactMatch": false,
+    "sender": null,
+    "nonce": null,
+    "gasEstimate": null,
+    "feeQuote": null
+  },
+  "actions": {
+    "mainnetRpcRequests": 0,
+    "operatorRequestedWalletConnections": 0,
+    "signatures": 0,
+    "broadcasts": 0,
+    "paidUpgrades": 0,
+    "publicDeployment": false,
+    "competitionSubmission": false
+  },
+  "recording": {
+    "format": "Manual milestone sampled screenshots with real timestamps, waits compressed, silent; not continuous footage",
+    "private": true,
+    "publicVideoUrl": null
+  },
+  "reference": "https://docs.arc.io/arc/references/connect-to-arc"
+}

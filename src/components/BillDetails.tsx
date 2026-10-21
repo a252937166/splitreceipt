@@ -20,13 +20,15 @@ import {
 } from 'lucide-react'
 import {
   SPLIT_RECEIPT_ABI,
-  SPLIT_RECEIPT_ADDRESS,
-  SPLIT_RECEIPT_DEPLOY_BLOCK,
-  ARC_TESTNET_CHAIN_ID,
 } from '../splitReceiptContract'
-import { requireChain } from '@/onchain-facts'
+import { activeNetwork } from '../activeNetwork'
+import { getWriteBlockReason } from '../networkContext'
+import { useDeploymentReadiness } from '../useDeploymentReadiness'
+import { useActionScope } from '../useActionScope'
+import { checkScopedWrite } from '../actionScope'
+import { checkExplicitWalletWrite, walletSnapshotMatchesDisplay } from '../walletSelection'
 import { fmtNativeUsdc } from '../usdcFormat'
-import { networkSwitchErrorMessage } from '../wallet-ui'
+import { networkSwitchErrorMessage, useExplicitWalletSelection } from '../wallet-ui'
 import {
   confirmedPaymentHash,
   historyRangeComplete,
@@ -47,7 +49,7 @@ import {
 } from '../receiptHints'
 import { discoverReceiptsFromHints } from '../receiptDiscovery'
 
-const chain = requireChain(ARC_TESTNET_CHAIN_ID)
+const chain = activeNetwork
 
 const SHARE_PAID_EVENT = parseAbiItem(
   'event SharePaid(uint256 indexed billId, address indexed payer, uint256 amount)'
@@ -87,13 +89,21 @@ interface FreshVerified {
 }
 
 export default function BillDetails({ billId, onBack }: BillDetailsProps) {
-  const { address, chainId, isConnected } = useAccount()
+  const { address, chainId, isConnected, connector } = useAccount()
+  const readiness = useDeploymentReadiness()
+  const actionScope = useActionScope(chainId, address, connector?.uid)
+  const walletSelection = useExplicitWalletSelection()
+  const explicitlySelected = walletSelection.isSelected()
+  const [checkingWrite, setCheckingWrite] = useState(false)
+  const writeLock = useRef(false)
+  const paymentScope = useRef<ReturnType<typeof actionScope.capture> | null>(null)
   const { switchChain, isPending: isSwitching, error: switchError } = useSwitchChain()
-  const publicClient = usePublicClient({ chainId: ARC_TESTNET_CHAIN_ID })
+  const publicClient = usePublicClient({ chainId: activeNetwork.chainId })
 
-  const isWrongChain = isConnected && chainId !== ARC_TESTNET_CHAIN_ID
-  const isContractDeployed = SPLIT_RECEIPT_ADDRESS.length > 2
-  const scopeKey = receiptScopeKey({ chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS, billId })
+  const isWrongChain = isConnected && chainId !== activeNetwork.chainId
+  const isContractDeployed = readiness.check.status === 'ready'
+  const writeBlockReason = getWriteBlockReason(activeNetwork, readiness.check, chainId, address)
+  const scopeKey = receiptScopeKey({ chainId: activeNetwork.chainId, contract: activeNetwork.contract ?? 'unconfigured', billId })
 
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState('')
@@ -125,11 +135,11 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
 
   // ── contract read ────────────────────────────────────────────────
   const { data: billData, isLoading, error: readError, refetch } = useReadContract({
-    address: SPLIT_RECEIPT_ADDRESS,
+    address: activeNetwork.contract ?? undefined,
     abi: SPLIT_RECEIPT_ABI,
     functionName: 'getBill',
     args: [billId],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId: activeNetwork.chainId,
     query: { enabled: isContractDeployed },
   })
 
@@ -142,8 +152,10 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
   const { isLoading: isConfirming, isSuccess, data: receiptData, error: confirmationError } =
     useWaitForTransactionReceipt({
       hash: submittedTxHash,
-      chainId: ARC_TESTNET_CHAIN_ID,
+      chainId: pendingPaymentRef.current?.chainId ?? activeNetwork.chainId,
       onReplaced: ({ reason }) => {
+        if (!paymentScope.current || !actionScope.isCurrent(paymentScope.current)) return
+        if (reason === 'cancelled' || reason === 'replaced') writeLock.current = false
         setReplacementNotice(reason === 'cancelled'
           ? 'Your wallet cancelled this transaction. No payment receipt was recorded; you can try again.'
           : reason === 'repriced'
@@ -158,7 +170,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
   useEffect(() => {
     if (!isSuccess || !receiptData || confirmedForTx.current === receiptData.transactionHash) return
     const pending = pendingPaymentRef.current
-    if (!pending) return
+    if (!pending || !paymentScope.current || !actionScope.isCurrent(paymentScope.current)) return
     const decodedLogs: Pick<SharePaidLog, 'address' | 'args'>[] = []
     for (const log of receiptData.logs) {
       if (log.address.toLowerCase() !== pending.contract.toLowerCase()) continue
@@ -171,6 +183,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
       status: receiptData.status, transactionHash: receiptData.transactionHash, logs: decodedLogs,
     })
     if (!matchedHash) return
+    writeLock.current = false
     confirmedForTx.current = receiptData.transactionHash
     const paymentScopeKey = receiptScopeKey(pending)
     // Persist confirmed hash as a candidate for future visits (hash-only, not proof).
@@ -180,7 +193,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
       [paymentScopeKey]: { ...(prev[paymentScopeKey] ?? {}), [pending.payer]: matchedHash },
     }))
     if (paymentScopeKey === scopeKey) void refetch()
-  }, [isSuccess, receiptData, submittedTxHash, refetch, scopeKey])
+  }, [isSuccess, receiptData, submittedTxHash, refetch, scopeKey, address, chainId, actionScope])
 
   // ── sequenced hint → invalidation → log scan ─────────────────────
   //
@@ -208,12 +221,12 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     : ''
 
   useEffect(() => {
-    if (!isContractDeployed || !publicClient || !billData) return
-    if (!publicClient.chain || publicClient.chain.id !== ARC_TESTNET_CHAIN_ID) return
+    if (!isContractDeployed || !activeNetwork.contract || !publicClient || !billData) return
+    if (!publicClient.chain || publicClient.chain.id !== activeNetwork.chainId) return
 
     const paidPayers = billData[2].filter((_, i) => billData[4][i])
     const paidPayersLc = paidPayers.map(p => p.toLowerCase())
-    const scope = { chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS, billId }
+    const scope = { chainId: activeNetwork.chainId, contract: activeNetwork.contract!, billId }
     const contextKey = makeFreshContextKey(scopeKey, paidPayersLc, scanToken)
 
     // Reset fresh-verified ref before any early return.
@@ -337,7 +350,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
           // If a hash was removed that was discovered in a previously scanned range,
           // reset the cursor so that range is re-scannable on next scan.
           const updated: ReceiptHistory = didInvalidateScannedHash
-            ? newReceiptHistory(scope, SPLIT_RECEIPT_DEPLOY_BLOCK)
+            ? newReceiptHistory(scope, activeNetwork.deploymentBlock)
             : { ...existing, receipts: cleaned }
           if (didInvalidateScannedHash) {
             // Carry forward the remaining clean receipts into the fresh history.
@@ -395,10 +408,10 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
       try {
         const liveChainId = await publicClient.getChainId()
         if (cancelled || freshVerifiedRef.current.contextKey !== contextKey) return
-        if (liveChainId !== ARC_TESTNET_CHAIN_ID) { pause(); return }
+        if (liveChainId !== activeNetwork.chainId) { pause(); return }
         const head = await publicClient.getBlockNumber()
         if (cancelled || freshVerifiedRef.current.contextKey !== contextKey) return
-        const oldRange = historiesRef.current[scopeKey] ?? newReceiptHistory(scope, SPLIT_RECEIPT_DEPLOY_BLOCK)
+        const oldRange = historiesRef.current[scopeKey] ?? newReceiptHistory(scope, activeNetwork.deploymentBlock)
         // Crucial: preserve range progress, replace trusted receipts with fresh proof ONLY.
         const startingHistory: ReceiptHistory = { ...oldRange, receipts: { ...fresh } }
         const result = await scanReceiptHistoryBatch({
@@ -410,7 +423,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
           isCancelled: () => cancelled,
           onPage: publishCandidates,
           fetchLogs: range => publicClient.getLogs({
-            address: SPLIT_RECEIPT_ADDRESS,
+            address: activeNetwork.contract!,
             event: SHARE_PAID_EVENT,
             args: { billId },
             strict: true,
@@ -423,7 +436,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
         const rawHashes = Object.values(result.history.receipts)
         const candidates = rawHashes.map(normaliseHash).filter((h): h is HintHash => h !== null)
         if (candidates.length !== rawHashes.length) {
-          const reopened = newReceiptHistory(scope, SPLIT_RECEIPT_DEPLOY_BLOCK)
+          const reopened = newReceiptHistory(scope, activeNetwork.deploymentBlock)
           reopened.receipts = { ...fresh }
           publishCandidates(reopened)
           pause()
@@ -497,15 +510,17 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
 
   // ── refresh ──────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
+    if (!isContractDeployed || !activeNetwork.contract) return
     void refetch()
     setScanToken(t => t + 1)
-  }, [refetch])
+  }, [refetch, isContractDeployed])
 
   const handleRetryFullHistory = useCallback(() => {
+    if (!isContractDeployed || !activeNetwork.contract) return
     const previous = historiesRef.current[scopeKey]
     const history = newReceiptHistory(
-      { chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS, billId },
-      SPLIT_RECEIPT_DEPLOY_BLOCK
+      { chainId: activeNetwork.chainId, contract: activeNetwork.contract ?? 'unconfigured', billId },
+      activeNetwork.deploymentBlock
     )
     // Carry forward receipts that survived the last invalidation sweep.
     history.receipts = { ...(previous?.receipts ?? {}) }
@@ -513,7 +528,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     setHistories(prev => ({ ...prev, [scopeKey]: history }))
     void refetch()
     setScanToken(t => t + 1)
-  }, [billId, scopeKey, refetch])
+  }, [billId, scopeKey, refetch, isContractDeployed])
 
   // ── copy link ────────────────────────────────────────────────────
   // Uses ONLY freshVerifiedRef when context key matches the current render.
@@ -533,7 +548,8 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
           .map(([, hash]) => hash)
           .slice(0, 5))
       : []
-    const url = buildShareUrl(billId, verifiedHashes)
+    if (!isContractDeployed || !activeNetwork.contract) return
+    const url = buildShareUrl(billId, verifiedHashes, activeNetwork)
     setCopyError('')
     navigator.clipboard.writeText(url)
       .then(() => {
@@ -544,17 +560,33 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
         setCopyError('Could not copy. Please copy the URL from the address bar.')
         setTimeout(() => setCopyError(''), 4000)
       })
-  }, [billId, billData, scopeKey, scanToken])
+  }, [billId, billData, scopeKey, scanToken, isContractDeployed])
 
   // ── pay ──────────────────────────────────────────────────────────
-  // Protected region — do not modify.
-  const handlePay = useCallback(() => {
-    if (!billData || !address || isWrongChain || isPending || isConfirming) return
+  // Recheck deployment and immutable wallet/page scope before opening a transaction.
+  const handlePay = useCallback(async () => {
+    if (!billData || !isConnected || !address || chainId !== activeNetwork.chainId || isWrongChain || isPending || isConfirming || checkingWrite || writeLock.current || !activeNetwork.contract) return
+    const walletSnapshot = walletSelection.capture()
+    if (!walletSnapshot || !walletSnapshotMatchesDisplay(walletSnapshot, { account: address, chainId, connectorUid: connector?.uid })) {
+      setReplacementNotice('The displayed wallet changed. Review and confirm the wallet in the wallet menu before paying.'); return
+    }
+    const payerIndex = billData[2].findIndex(p => p.toLowerCase() === walletSnapshot.account.toLowerCase())
+    if (payerIndex < 0 || billData[4][payerIndex]) return
+    writeLock.current = true
+    setCheckingWrite(true)
+    const walletGate = await checkExplicitWalletWrite(walletSelection, walletSnapshot,
+      () => checkScopedWrite(activeNetwork, actionScope, readiness.recheck, walletSnapshot.chainId, walletSnapshot.account))
+    setCheckingWrite(false)
+    const verified = walletGate.verification
+    if (walletGate.blocked || !verified || !walletSelection.isCurrent(walletSnapshot) || !actionScope.isCurrent(verified.snapshot)) {
+      writeLock.current = false; setReplacementNotice(walletGate.blocked ?? 'Select and confirm your wallet before paying.'); return
+    }
+    paymentScope.current = verified.snapshot
     reset()
     setReplacementNotice(null)
     const pending: PaymentSnapshot = {
-      payer: address.toLowerCase(), billId,
-      chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS,
+      payer: walletSnapshot.account.toLowerCase(), billId,
+      chainId: activeNetwork.chainId, contract: activeNetwork.contract!,
       amount: billData[3],
     }
     pendingPaymentRef.current = pending
@@ -562,11 +594,16 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
     confirmedForTx.current = null
     const [, , , share] = billData
     writeContract({
-      address: SPLIT_RECEIPT_ADDRESS, abi: SPLIT_RECEIPT_ABI,
+      address: activeNetwork.contract!, abi: SPLIT_RECEIPT_ABI,
       functionName: 'payShare', args: [billId],
-      value: share, chainId: ARC_TESTNET_CHAIN_ID,
-    }, { onSuccess: hash => { pending.submittedHash = hash } })
-  }, [billData, billId, writeContract, reset, address, isWrongChain, isPending, isConfirming])
+      connector: walletSnapshot.connector, account: walletSnapshot.account,
+      value: share, chainId: activeNetwork.chainId,
+    }, { onSuccess: hash => { pending.submittedHash = hash }, onError: () => { writeLock.current = false } })
+  }, [billData, billId, writeContract, reset, address, chainId, connector?.uid, isConnected, isWrongChain, isPending, isConfirming, checkingWrite, readiness, actionScope, walletSelection])
+
+  useEffect(() => {
+    if (confirmationError || receiptData?.status === 'reverted') writeLock.current = false
+  }, [confirmationError, receiptData])
 
   // ── derived state ─────────────────────────────────────────────────
   let myIndex = -1, myPaidState = false, totalPaid = 0
@@ -661,6 +698,18 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
         )}
       </div>
 
+      {isConnected && !explicitlySelected && (
+        <div className="alert-warn mb-6" role="alert"><AlertCircle size={15} aria-hidden="true" />
+          <span>Confirm the wallet you intend to use in the wallet menu before paying.</span>
+        </div>
+      )}
+      {!isContractDeployed && (
+        <div className="alert-warn mb-6" role="alert">
+          <AlertCircle size={15} aria-hidden="true" />
+          <span>{readiness.check.reason ?? 'Checking the selected network deployment…'}</span>
+        </div>
+      )}
+
       {/* ── Loading ────────────────────────────────────────────────── */}
       {isLoading && (
         <div className="doc-surface p-12 flex flex-col items-center gap-3">
@@ -685,7 +734,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
       )}
 
       {/* ── Bill content ───────────────────────────────────────────── */}
-      {billData && !isLoading && !readError && (
+      {isContractDeployed && billData && !isLoading && !readError && (
         <div className="layout-details">
 
             {/* ── LEFT: receipt document ───────────────────────────── */}
@@ -983,7 +1032,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
                         <p className="sr-meta" style={{ color: 'var(--subdued)' }}>
                           Scanned blocks {history.scannedFrom.toLocaleString()}–{history.scannedTo.toLocaleString()}.
                           {allHistorySearched
-                            ? ` Full range from ${SPLIT_RECEIPT_DEPLOY_BLOCK === null ? 'genesis' : 'deployment block'} through block ${history.lastHead?.toLocaleString()} checked.`
+                            ? ` Full range from ${activeNetwork.deploymentBlock === null ? 'genesis' : 'deployment block'} through block ${history.lastHead?.toLocaleString()} checked.`
                             : olderBlocksRemain && newerBlocksRemain ? ' Newer and older blocks remain.'
                             : newerBlocksRemain ? ' Newer blocks remain.'
                             : olderBlocksRemain ? ' Older blocks remain.' : ''}
@@ -1034,12 +1083,12 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
               {isWrongChain && myIndex !== -1 && !myPaidState && (
                 <div className="alert-warn" role="alert">
                   <AlertCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
-                  <span className="flex-1 sr-small">Switch to Arc Testnet to pay.</span>
+                  <span className="flex-1 sr-small">Switch to {activeNetwork.name} to pay.</span>
                   <button
                     type="button"
                     className="btn-ghost"
                     style={{ minHeight: '36px', padding: '4px 12px', fontSize: '12px', flexShrink: 0 }}
-                    onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
+                    onClick={() => switchChain({ chainId: activeNetwork.chainId })}
                     disabled={isSwitching}
                     aria-busy={isSwitching}
                   >
@@ -1115,8 +1164,9 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
                       type="button"
                       onClick={handlePay}
                       className="btn-primary"
+                      disabled={!explicitlySelected || checkingWrite || writeLock.current || Boolean(writeBlockReason)}
                     >
-                      Pay {shareDisplay} USDC
+                      {checkingWrite ? 'Verifying deployment…' : `Pay ${shareDisplay} USDC`}
                     </button>
                   )}
                 </div>
