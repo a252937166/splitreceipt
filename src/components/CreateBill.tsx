@@ -2,13 +2,19 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi'
 import { decodeEventLog } from 'viem'
 import { ExternalLink, CheckCircle, AlertCircle, Plus, Trash2, Info, Shield } from 'lucide-react'
-import { SPLIT_RECEIPT_ABI, SPLIT_RECEIPT_ADDRESS, ARC_TESTNET_CHAIN_ID } from '../splitReceiptContract'
-import { requireChain } from '@/onchain-facts'
+import { SPLIT_RECEIPT_ABI } from '../splitReceiptContract'
+import { activeNetwork } from '../activeNetwork'
+import { getWriteBlockReason } from '../networkContext'
+import { useDeploymentReadiness } from '../useDeploymentReadiness'
+import { useActionScope } from '../useActionScope'
+import { checkScopedWrite } from '../actionScope'
+import { checkExplicitWalletWrite, walletSnapshotMatchesDisplay } from '../walletSelection'
+import { creationMayRetry } from '../creationRetry'
 import { parseUsdcToNative, fmtNativeUsdc, validateUsdcInput } from '../usdcFormat'
 import { applyCreationReplacement, confirmBillCreation, type BillCreatedLog, type CreateBillSubmission } from '../createBillReceipt'
-import { networkSwitchErrorMessage } from '../wallet-ui'
+import { networkSwitchErrorMessage, useExplicitWalletSelection } from '../wallet-ui'
 
-const chain = requireChain(ARC_TESTNET_CHAIN_ID)
+const chain = activeNetwork
 
 function parseOnchainError(error: unknown): string {
   const msg = (error as Error)?.message?.toLowerCase() ?? ''
@@ -42,7 +48,14 @@ interface CreateBillProps {
 }
 
 export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProps) {
-  const { address, chainId, isConnected } = useAccount()
+  const { address, chainId, isConnected, connector } = useAccount()
+  const readiness = useDeploymentReadiness()
+  const actionScope = useActionScope(chainId, address, connector?.uid)
+  const walletSelection = useExplicitWalletSelection()
+  const explicitlySelected = walletSelection.isSelected()
+  const [checkingWrite, setCheckingWrite] = useState(false)
+  const writeLock = useRef(false)
+  const requestScope = useRef<ReturnType<typeof actionScope.capture> | null>(null)
   const { switchChain, isPending: isSwitching, error: switchError } = useSwitchChain()
   const { writeContract, data: txHash, isPending, error: writeError, reset } = useWriteContract()
   const [receiptError, setReceiptError] = useState('')
@@ -51,10 +64,10 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
 
   const { isLoading: isConfirming, isSuccess, data: receipt, error: waitError } = useWaitForTransactionReceipt({
     hash: txHash,
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId: submitted.current?.chainId ?? activeNetwork.chainId,
     onReplaced(replacement) {
       const request = submitted.current
-      if (!request) return
+      if (!request || !requestScope.current || !actionScope.isCurrent(requestScope.current)) return
       const next = applyCreationReplacement(request, {
         reason: replacement.reason,
         replacedHash: replacement.replacedTransaction.hash,
@@ -63,6 +76,7 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
       if (next === request) return
       submitted.current = next
       if (next.invalidated) {
+        if (creationMayRetry(next.invalidated)) writeLock.current = false
         setReceiptError(next.invalidated === 'cancelled'
           ? 'Transaction cancelled in your wallet. No bill was created by this request.'
           : 'Transaction was replaced. Check your wallet before trying again.')
@@ -76,8 +90,9 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
   const [share, setShare] = useState('')
   const [validationError, setValidationError] = useState('')
 
-  const isWrongChain = isConnected && chainId !== ARC_TESTNET_CHAIN_ID
-  const isContractDeployed = SPLIT_RECEIPT_ADDRESS.length > 2
+  const isWrongChain = isConnected && chainId !== activeNetwork.chainId
+  const isContractDeployed = readiness.check.status === 'ready'
+  const writeBlockReason = getWriteBlockReason(activeNetwork, readiness.check, chainId, address)
 
   // Derived preview (pure bigint, no floating-point)
   const preview = derivePreview(share, payers.length)
@@ -103,34 +118,50 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
     return true
   }, [title, recipient, payers, share])
 
-  const handleCreate = () => {
-    if (!isConnected || !address || chainId !== ARC_TESTNET_CHAIN_ID || isPending || isConfirming) return
+  const handleCreate = async () => {
+    if (!isConnected || !address || chainId !== activeNetwork.chainId || isPending || isConfirming || checkingWrite || writeLock.current || !activeNetwork.contract) return
+    const walletSnapshot = walletSelection.capture()
+    if (!walletSnapshot || !walletSnapshotMatchesDisplay(walletSnapshot, { account: address, chainId, connectorUid: connector?.uid })) {
+      setValidationError('The displayed wallet changed. Review and confirm the wallet in the wallet menu before creating a bill.'); return
+    }
     if (!validate()) return
+    writeLock.current = true
+    setCheckingWrite(true)
+    const walletGate = await checkExplicitWalletWrite(walletSelection, walletSnapshot,
+      () => checkScopedWrite(activeNetwork, actionScope, readiness.recheck, walletSnapshot.chainId, walletSnapshot.account))
+    setCheckingWrite(false)
+    const verified = walletGate.verification
+    if (walletGate.blocked || !verified || !walletSelection.isCurrent(walletSnapshot) || !actionScope.isCurrent(verified.snapshot)) {
+      writeLock.current = false; setValidationError(walletGate.blocked ?? 'Select and confirm your wallet before creating a bill.'); return
+    }
+    requestScope.current = verified.snapshot
     reset()
     setReceiptError('')
     handled.current = null
     let shareWei: bigint
-    try { shareWei = parseUsdcToNative(share) } catch (e) { setValidationError((e as Error).message); return }
+    try { shareWei = parseUsdcToNative(share) } catch (e) { writeLock.current = false; setValidationError((e as Error).message); return }
     const request: CreateBillSubmission = {
-      chainId: ARC_TESTNET_CHAIN_ID, contract: SPLIT_RECEIPT_ADDRESS,
-      creator: address.toLowerCase(),
+      chainId: activeNetwork.chainId, contract: activeNetwork.contract!,
+      creator: walletSnapshot.account.toLowerCase(),
       title: title.trim(), recipient: recipient.toLowerCase(),
       payers: payers.map(p => p.toLowerCase()), share: shareWei,
     }
     submitted.current = request
     writeContract({
-      address: SPLIT_RECEIPT_ADDRESS,
+      address: activeNetwork.contract!,
       abi: SPLIT_RECEIPT_ABI,
       functionName: 'createBill',
+      connector: walletSnapshot.connector, account: walletSnapshot.account,
       args: [title.trim(), recipient as `0x${string}`, payers as `0x${string}`[], shareWei],
-      chainId: ARC_TESTNET_CHAIN_ID,
-    }, { onSuccess(hash) { request.hash = hash }, onError() { if (submitted.current === request) submitted.current = null } })
+      chainId: activeNetwork.chainId,
+    }, { onSuccess(hash) { request.hash = hash }, onError() { writeLock.current = false; if (submitted.current === request) submitted.current = null } })
   }
 
   // Extract the billId from the BillCreated event log once the receipt arrives
   useEffect(() => {
     const request = submitted.current
-    if (!isSuccess || !receipt || !request?.hash || handled.current === receipt.transactionHash) return
+    if (!isSuccess || !receipt || !request?.hash || handled.current === receipt.transactionHash ||
+      !requestScope.current || !actionScope.isCurrent(requestScope.current)) return
     const decodedLogs: BillCreatedLog[] = []
     for (const log of receipt.logs) {
       if (log.address.toLowerCase() !== request.contract.toLowerCase()) continue
@@ -141,8 +172,9 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
     }
     const result = confirmBillCreation(request,
       { status: receipt.status, transactionHash: receipt.transactionHash, logs: decodedLogs },
-      { receiptChainId: ARC_TESTNET_CHAIN_ID, connectedAddress: address, connectedChainId: chainId })
+      { receiptChainId: activeNetwork.chainId, connectedAddress: address, connectedChainId: chainId })
     if (result.kind === 'stale') return
+    if (creationMayRetry(result.kind)) writeLock.current = false
     if (result.kind === 'confirmed') {
       handled.current = result.transactionHash
       setReceiptError('')
@@ -154,19 +186,26 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
       cancelled: 'Transaction cancelled in your wallet. No bill was created by this request.',
       replaced: 'Transaction was replaced. Check your wallet before trying again.',
       'wrong-wallet': 'This request belongs to your previous wallet. Reconnect that wallet to finish checking its bill.',
-      'wrong-chain': 'Switch back to Arc Testnet to finish checking this bill.',
-      'missing-event': 'The mined receipt did not contain the expected bill event.',
+      'wrong-chain': `Switch back to ${activeNetwork.name} to finish checking this bill.`,
+      'missing-event': 'The successful receipt did not contain the expected bill event. Inspect the transaction on the explorer before creating another bill.',
       'ambiguous-event': 'The receipt contains more than one matching bill. Inspect it on the explorer before trying again.',
     }
     setReceiptError(messages[result.kind] ?? 'Unknown error.')
   }, [isSuccess, receipt, address, chainId, onBillCreated])
+
+  useEffect(() => {
+    if (waitError) {
+      writeLock.current = false
+      setReceiptError('Receipt lookup failed. Inspect the existing transaction on the explorer before retrying.')
+    }
+  }, [waitError])
 
   const txUrl = (receipt?.transactionHash || txHash)
     ? `${chain.explorerBase}/tx/${receipt?.transactionHash || txHash}`
     : null
 
   const titleBytes = new TextEncoder().encode(title.trim()).length
-  const isBusy = isPending || isConfirming
+  const isBusy = isPending || isConfirming || checkingWrite
 
   /* ── JSX ───────────────────────────────────────────────────────────────────── */
   return (
@@ -179,11 +218,17 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
         </p>
       </div>
 
-      {/* Contract not deployed */}
+      {isConnected && !explicitlySelected && (
+        <div className="alert-warn mb-6" role="alert"><AlertCircle size={15} aria-hidden="true" />
+          <span>Confirm the wallet you intend to use in the wallet menu before creating a bill.</span>
+        </div>
+      )}
+
+      {/* Deployment is checked against the selected chain and reviewed bytecode. */}
       {!isContractDeployed && (
         <div className="alert-warn mb-6" role="alert">
           <AlertCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
-          <span>Contract not yet deployed. Deploy SplitReceipt to Arc Testnet first.</span>
+          <span>{readiness.check.reason ?? 'Checking the selected network deployment…'}</span>
         </div>
       )}
 
@@ -196,12 +241,12 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
             {isWrongChain && (
               <div className="alert-warn" role="alert">
                 <AlertCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
-                <span className="flex-1 sr-small">Switch to Arc Testnet to create a bill.</span>
+                <span className="flex-1 sr-small">Switch to {activeNetwork.name} to create a bill.</span>
                 <button
                   type="button"
                   className="btn-ghost"
                   style={{ minHeight: '36px', padding: '4px 12px', fontSize: '13px' }}
-                  onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
+                  onClick={() => switchChain({ chainId: activeNetwork.chainId })}
                   disabled={isSwitching}
                   aria-busy={isSwitching}
                 >
@@ -393,7 +438,7 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
             {(receiptError || waitError) && !validationError && (
               <div className="alert-danger" role="alert">
                 <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }} />
-                <span>{receiptError || parseOnchainError(waitError)}</span>
+                <span>{receiptError || parseOnchainError(waitError)} {txUrl && <a href={txUrl} target="_blank" rel="noopener noreferrer" className="underline">Inspect transaction</a>}</span>
               </div>
             )}
 
@@ -437,18 +482,20 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
                     cursor: 'not-allowed',
                   }}
                 >
-                  Connect wallet to continue
+                  {activeNetwork.isTestnet ? 'Connect wallet to continue' : 'Mainnet transactions disabled'}
                 </button>
               </div>
             ) : (
               <button
                 type="button"
-                onClick={isWrongChain ? () => switchChain({ chainId: ARC_TESTNET_CHAIN_ID }) : handleCreate}
-                disabled={isPending || isConfirming || isSwitching || !isContractDeployed}
+                onClick={isWrongChain ? () => switchChain({ chainId: activeNetwork.chainId }) : handleCreate}
+                disabled={!explicitlySelected || isBusy || writeLock.current || isSwitching || !isContractDeployed || (!isWrongChain && Boolean(writeBlockReason)) || !activeNetwork.isTestnet}
                 className="btn-primary"
                 aria-busy={isBusy || isSwitching}
               >
-                {isWrongChain ? isSwitching ? 'Switching network…' : 'Switch to Arc Testnet'
+                {!activeNetwork.isTestnet ? 'Mainnet transactions disabled'
+                  : checkingWrite ? 'Verifying deployment…'
+                  : isWrongChain ? isSwitching ? 'Switching network…' : `Switch to ${activeNetwork.name}`
                   : isPending ? 'Confirm in wallet…'
                   : isConfirming ? 'Confirming…'
                   : 'Create bill'}
@@ -546,7 +593,7 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
               style={{ background: 'var(--info-bg)', color: 'var(--info-ink)', border: '1px solid var(--info-border)' }}
             >
               <Info size={13} style={{ flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
-              <span>Arc Testnet only. USDC here has no real-world value.</span>
+              <span>{activeNetwork.isTestnet ? 'Arc Testnet only. USDC here has no real-world value.' : 'Arc Mainnet uses real USDC. Deployment is not configured and all mainnet transactions are disabled.'}</span>
             </div>
           </div>
       </div>

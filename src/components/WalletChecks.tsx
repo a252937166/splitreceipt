@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { ArrowLeft, ExternalLink, ChevronRight, Shield, AlertTriangle } from 'lucide-react'
-import { SPLIT_RECEIPT_ADDRESS, ARC_TESTNET_CHAIN_ID } from '../splitReceiptContract'
+import { activeNetwork } from '../activeNetwork'
+import { useDeploymentReadiness } from '../useDeploymentReadiness'
 
-const EXPLORER_BASE = 'https://explorer.testnet.arc.io'
-const EXPLORER_CONTRACT = `${EXPLORER_BASE}/address/${SPLIT_RECEIPT_ADDRESS}`
+const EXPLORER_CONTRACT = activeNetwork.contract ? `${activeNetwork.explorerBase}/address/${activeNetwork.contract}` : null
 
 interface WalletChecksProps {
   onBack: () => void
@@ -60,6 +60,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function WalletChecks({ onBack }: WalletChecksProps) {
+  const readiness = useDeploymentReadiness()
+  const gasLabel = activeNetwork.isTestnet ? 'Testnet USDC (no real value)' : 'Real USDC; no mainnet transactions enabled in this preparation build'
   return (
     <div className="max-w-2xl mx-auto space-y-6">
 
@@ -88,10 +90,11 @@ export default function WalletChecks({ onBack }: WalletChecksProps) {
 
       {/* Contract identity */}
       <Section title="Contract identity">
-        <CheckRow label="Network" value="Arc Testnet" />
-        <CheckRow label="Chain ID" value={ARC_TESTNET_CHAIN_ID.toString()} />
-        <CheckRow label="Contract address" value={SPLIT_RECEIPT_ADDRESS} mono />
-        <div className="flex flex-wrap gap-3 pt-4">
+        <CheckRow label="Network" value={activeNetwork.name} />
+        <CheckRow label="Chain ID" value={activeNetwork.chainId.toString()} />
+        <CheckRow label="Contract address" value={activeNetwork.contract ?? 'Not deployed / not configured'} mono />
+        <CheckRow label="Deployment verification" value={readiness.check.reason ?? readiness.check.status} />
+        {EXPLORER_CONTRACT && <div className="flex flex-wrap gap-3 pt-4">
           <a
             href={EXPLORER_CONTRACT}
             target="_blank"
@@ -108,7 +111,7 @@ export default function WalletChecks({ onBack }: WalletChecksProps) {
           >
             Verify source code <ExternalLink size={12} aria-hidden="true" />
           </a>
-        </div>
+        </div>}
       </Section>
 
       {/* What creating a bill sends */}
@@ -117,10 +120,10 @@ export default function WalletChecks({ onBack }: WalletChecksProps) {
           className="rounded-lg p-4 mb-1 sr-small"
           style={{ background: 'var(--surface-subtle)', color: 'var(--secondary)', border: '1px solid var(--border)' }}
         >
-          <p><span style={{ color: 'var(--ink)', fontWeight: 600 }}>Creates a bill</span> — stores title, recipient, payer addresses and share amount permanently on Arc Testnet.</p>
+          <p><span style={{ color: 'var(--ink)', fontWeight: 600 }}>Creates a bill</span> — stores title, recipient, payer addresses and share amount permanently on {activeNetwork.name}.</p>
         </div>
         <CheckRow label="USDC transferred" value="0 USDC (zero value)" />
-        <CheckRow label="Gas cost" value="Small amount of testnet USDC (no real value)" />
+        <CheckRow label="Gas cost" value={gasLabel} />
         <CheckRow label="Token approval required" value="No — no ERC-20 approve call" />
         <CheckRow label="Permit or message signature" value="No — wallet transaction confirmation is required; no permit or message signature" />
         <CheckRow label="Message signing (eth_sign, etc.)" value="No" />
@@ -141,11 +144,11 @@ export default function WalletChecks({ onBack }: WalletChecksProps) {
           className="rounded-lg p-4 mb-1 sr-small"
           style={{ background: 'var(--surface-subtle)', color: 'var(--secondary)', border: '1px solid var(--border)' }}
         >
-          <p><span style={{ color: 'var(--ink)', fontWeight: 600 }}>Pays your share</span> — sends exactly the displayed test-USDC share directly to the bill recipient. No custody pool.</p>
+          <p><span style={{ color: 'var(--ink)', fontWeight: 600 }}>Pays your share</span> — sends exactly the displayed {activeNetwork.isTestnet ? 'test-USDC' : 'real-USDC'} share directly to the bill recipient. No custody pool.</p>
         </div>
         <CheckRow label="USDC transferred" value="Exactly the displayed share (e.g. 0.001 USDC)" />
         <CheckRow label="Who receives it" value="The bill recipient address — immediately on confirmation" />
-        <CheckRow label="Gas cost" value="Small amount of testnet USDC (no real value)" />
+        <CheckRow label="Gas cost" value={gasLabel} />
         <CheckRow label="Token approval required" value="No — Arc uses native USDC" />
         <CheckRow label="Permit or message signature" value="No — wallet transaction confirmation is required; no permit or message signature" />
         <CheckRow label="Message signing (eth_sign, etc.)" value="No" />
@@ -169,7 +172,8 @@ export default function WalletChecks({ onBack }: WalletChecksProps) {
             'Custody your USDC — payments go directly to the bill recipient',
             'Ask you to "verify" your wallet or send a test transaction first',
             'Contact you on social media or direct message',
-            'Operate on Ethereum mainnet or any other chain',
+            'Automatically switch your wallet or transfer funds when changing the app network',
+            'Send mainnet transactions in this preparation build',
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-3 py-1">
               <span

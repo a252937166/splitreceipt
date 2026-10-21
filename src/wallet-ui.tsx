@@ -1,15 +1,8 @@
-import { useCallback, useEffect, useId, useRef, useState, type PropsWithChildren } from 'react'
-import { useConnect, useConnection, useConnectors, useDisconnect, useSwitchChain } from 'wagmi'
-import { arcTestnet } from './config'
-
-function errorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
-  if (/rejected|denied|4001/i.test(message)) return 'Wallet request cancelled. You can try again.'
-  if (/provider.*not.*found|not.*installed/i.test(message)) {
-    return 'No browser wallet was found. Install an Ethereum-compatible wallet, then reload this page.'
-  }
-  return message.split('\n')[0] || 'The wallet could not connect. Please try again.'
-}
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type PropsWithChildren } from 'react'
+import { useConnect, useConnection, useConnectors, useDisconnect, useSwitchChain, useConfig } from 'wagmi'
+import { activeNetwork } from './activeNetwork'
+import { walletRequestErrorMessage } from './walletPolicy'
+import { createExplicitWalletSession, watchExplicitWalletSession, type ExplicitWalletSession } from './walletSelection'
 
 export function networkSwitchErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
@@ -18,30 +11,53 @@ export function networkSwitchErrorMessage(error: unknown): string {
     return 'Network switch cancelled. You can try again.'
   }
   if (code === 4902 || /unsupported chain|not supported|unrecognized chain|4902/i.test(message)) {
-    return 'Your wallet could not switch to Arc Testnet. Add Arc Testnet in your wallet, then try again.'
+    return `Your wallet could not switch to ${activeNetwork.name}. Add ${activeNetwork.name} in your wallet, then try again.`
   }
-  return 'Could not switch to Arc Testnet. Check your wallet and try again.'
+  return `Could not switch to ${activeNetwork.name}. Check your wallet and try again.`
 }
 
-/** Wallet state is provided by WagmiProvider; no account service or API key is used. */
+const ExplicitWalletContext = createContext<{ session: ExplicitWalletSession; refresh: () => void } | null>(null)
+
+/** Wallet choice lasts only for this page; external connection events cannot authorize writes. */
 export function WalletProvider({ children }: PropsWithChildren) {
-  return <>{children}</>
+  const config = useConfig()
+  useConnection()
+  const [session] = useState(() => createExplicitWalletSession(config))
+  const [, setRevision] = useState(0)
+  useEffect(() => watchExplicitWalletSession(config, session), [config, session])
+  // Recreate context on actual wallet changes so disabled buttons update as well.
+  return <ExplicitWalletContext.Provider value={{ session, refresh: () => setRevision(n => n + 1) }}>{children}</ExplicitWalletContext.Provider>
+}
+
+export function useExplicitWalletSelection() {
+  const context = useContext(ExplicitWalletContext)
+  if (!context) throw new Error('WalletProvider is required.')
+  return {
+    ...context.session,
+    select: (...args: Parameters<ExplicitWalletSession['select']>) => { const selected = context.session.select(...args); context.refresh(); return selected },
+    clear: () => { context.session.clear(); context.refresh() },
+  }
 }
 
 export function WalletButton() {
-  const { address, isConnected, chainId } = useConnection()
+  const { address, isConnected, chainId, chain: walletChain, connector: connectedConnector } = useConnection()
   const connectors = useConnectors()
+  const selection = useExplicitWalletSelection()
+  const explicitlySelected = selection.isSelected()
   const { connectAsync, isPending: connecting } = useConnect()
   const { disconnectAsync, isPending: disconnecting } = useDisconnect()
   const { switchChainAsync, isPending: switching } = useSwitchChain()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
+  const [requestedWallet, setRequestedWallet] = useState('')
+  const connectionLock = useRef(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
   const dialogId = useId()
   const titleId = useId()
   const descriptionId = useId()
   const pending = connecting || disconnecting || switching
+  const pendingWallet = requestedWallet || connectedConnector?.name || 'your selected wallet'
   const close = useCallback(() => { setOpen(false); setError('') }, [])
 
   // Focus trap + Escape
@@ -79,13 +95,14 @@ export function WalletButton() {
 
   const label = isConnected && address
     ? `${address.slice(0, 6)}…${address.slice(-4)}`
-    : 'Connect wallet'
+    : connecting && requestedWallet ? `Open ${requestedWallet}` : 'Connect wallet'
 
   return <>
     <button
       type="button"
       ref={triggerRef}
       className="btn-wallet"
+      aria-label={isConnected && connectedConnector ? `Wallet: ${connectedConnector.name}, ${label}` : label}
       aria-haspopup="dialog"
       aria-expanded={open}
       aria-controls={open ? dialogId : undefined}
@@ -95,13 +112,16 @@ export function WalletButton() {
         <span
           style={{
             width: '8px', height: '8px', borderRadius: '9999px',
-            background: chainId === arcTestnet.id ? 'var(--success)' : 'var(--warn-ink)',
+            background: chainId === activeNetwork.chainId ? 'var(--success)' : 'var(--warn-ink)',
             flexShrink: 0,
           }}
           aria-hidden="true"
         />
       )}
-      <span className={isConnected ? 'sr-mono' : ''}>{label}</span>
+      <span className="flex flex-col items-start leading-tight min-w-0">
+        {isConnected && connectedConnector && <span className="text-[10px] max-w-[110px] truncate">{connectedConnector.name}</span>}
+        <span className={isConnected ? 'sr-mono' : ''}>{label}</span>
+      </span>
     </button>
 
     {open && (
@@ -154,17 +174,32 @@ export function WalletButton() {
           </div>
 
           <p id={descriptionId} className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
-            Arc Testnet · Test USDC only
+            {activeNetwork.isTestnet ? 'Arc Testnet · Test USDC only' : 'Arc Mainnet · Real USDC · Transactions disabled'}
           </p>
+          {!isConnected && <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>Select your wallet explicitly after reloading.</p>}
 
           {pending && (
             <p role="status" className="mb-4 text-sm" style={{ color: 'var(--muted)' }}>
-              Check your wallet to finish or cancel the pending request.
+              Open {pendingWallet} to finish or cancel the pending request.
             </p>
           )}
 
           {isConnected ? (
             <div className="space-y-3">
+              <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Connected with {connectedConnector?.name ?? 'your selected wallet'}</p>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>Wallet network: {walletChain?.name ?? 'Unknown network'} (chain {chainId ?? 'unknown'})</p>
+              {!explicitlySelected && (
+                <div className="alert-warn" role="alert">
+                  <span>The connected wallet changed or has not been confirmed for this page. Confirm the wallet below before creating a bill or paying.</span>
+                </div>
+              )}
+              <button type="button" disabled={pending || !connectedConnector || explicitlySelected} className="btn-primary"
+                onClick={() => {
+                  if (connectedConnector && address && chainId !== undefined && selection.select(connectedConnector.uid, { account: address, chainId })) setError('')
+                  else setError('The wallet or account changed. Review the current wallet details and try again.')
+                }}>
+                {explicitlySelected ? 'Wallet selected for this page' : 'Use this wallet'}
+              </button>
               {/* Full address */}
               <p
                 className="break-all rounded-xl p-3 sr-mono text-xs"
@@ -174,7 +209,7 @@ export function WalletButton() {
               </p>
 
               {/* Wrong chain prompt */}
-              {chainId !== arcTestnet.id && (
+              {chainId !== activeNetwork.chainId && (
                 <button
                   type="button"
                   disabled={pending}
@@ -182,10 +217,10 @@ export function WalletButton() {
                   style={{ fontSize: '14px', minHeight: '48px' }}
                   onClick={() => {
                     setError('')
-                    void switchChainAsync({ chainId: arcTestnet.id }).catch(e => setError(errorMessage(e)))
+                    void switchChainAsync({ chainId: activeNetwork.chainId }).catch(e => setError(networkSwitchErrorMessage(e)))
                   }}
                 >
-                  {switching ? 'Check your wallet…' : 'Switch to Arc Testnet'}
+                  {switching ? 'Check your wallet…' : `Switch to ${activeNetwork.name}`}
                 </button>
               )}
 
@@ -194,7 +229,7 @@ export function WalletButton() {
                 disabled={pending}
                 className="btn-ghost"
                 style={{ width: '100%', minHeight: '44px' }}
-                onClick={() => { setError(''); void disconnectAsync().then(close).catch(e => setError(errorMessage(e))) }}
+                onClick={() => { selection.clear(); setError(''); void disconnectAsync().then(close).catch(e => setError(walletRequestErrorMessage(e, connectedConnector?.name))) }}
               >
                 Disconnect
               </button>
@@ -209,18 +244,26 @@ export function WalletButton() {
                   className="btn-ghost"
                   style={{ display: 'flex', width: '100%', minHeight: '48px', justifyContent: 'flex-start', padding: '12px 16px' }}
                   onClick={() => {
+                    if (connectionLock.current || pending) return
+                    connectionLock.current = true
                     setError('')
-                    void connectAsync({ connector, chainId: arcTestnet.id })
-                      .then(() => setOpen(false))
-                      .catch(e => setError(errorMessage(e)))
+                    setRequestedWallet(connector.name)
+                    void connectAsync({ connector })
+                      .then(result => {
+                        const account = result.accounts[0]
+                        if (selection.select(connector.uid, { account, chainId: result.chainId })) setOpen(false)
+                        else setError('The connected wallet changed. Check the wallet shown here and select it again.')
+                      })
+                      .catch(e => setError(walletRequestErrorMessage(e, connector.name)))
+                      .finally(() => { connectionLock.current = false; setRequestedWallet('') })
                   }}
                 >
-                  {connecting ? 'Check your wallet…' : connector.name === 'Injected' ? 'Browser wallet' : connector.name}
+                  {connecting && requestedWallet === connector.name ? `Open ${connector.name}…` : connector.name}
                 </button>
               ))}
               {connectors.length === 0 && (
                 <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                  Install an Ethereum-compatible browser wallet, then reload this page.
+                  No compatible wallet was found. Open or enable your wallet, then reload this page.
                 </p>
               )}
             </div>

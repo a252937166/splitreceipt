@@ -6,7 +6,7 @@ Create a shared bill, let each payer send their exact share, and recover a trans
 
 [Public demo](https://splitreceipt.axiqo.xyz/splitreceipt/) · [Settled bill 3](https://splitreceipt.axiqo.xyz/splitreceipt/?bill=3) · [Source](https://github.com/a252937166/splitreceipt) · [Studio project](https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62) · [Validation status](docs/VALIDATION.md)
 
-The public site is deployed on dedicated static hosting (splitreceipt.axiqo.xyz) with verified HTTPS. The dedicated domain was checked anonymously (no wallet connected) and bill 3 read back as settled with both receipts visible. MetaMask connection, wallet signing and the related security warning belong to the earlier old GitHub Pages and temporary hosting session, not to a wallet retest on the new dedicated hostname. The old GitHub Pages hostname returned `recommendedAction: BLOCK` in one official scan; its cause remains unconfirmed. The new dedicated hostname returned `NONE` in one 18 October scan; this does not guarantee future wallet behavior or certify security. See the [site warning review](docs/METAMASK-SITE-REVIEW.md). The local standalone app also passed ordinary-wallet connection/rejection, creation/payment, disconnect/reload, account-change and testnet-switch checks; detailed boundaries are in the validation record.
+The public site is deployed on dedicated static hosting (splitreceipt.axiqo.xyz) with verified HTTPS. On 18 October the dedicated domain was checked anonymously (no wallet connected) and bill 3 read back as settled with both receipts visible. Subsequently a Bill 4 create transaction was submitted on the new domain; the direct user confirmed the wallet approval dialog appeared with no malicious warning shown — this absence is user-reported for that createBill step only, native wallet pixels were not captured, and payShare confirmation on the new domain has not been retested. The old GitHub Pages hostname returned `recommendedAction: BLOCK` in one official scan; its cause remains unconfirmed. The new dedicated hostname returned `NONE` in one 18 October scan; this does not guarantee future wallet behavior or certify security. See the [site warning review](docs/METAMASK-SITE-REVIEW.md). The local standalone app also passed ordinary-wallet connection/rejection, creation/payment, disconnect/reload, account-change and testnet-switch checks; detailed boundaries are in the validation record.
 
 ## Try a bill
 
@@ -48,7 +48,9 @@ Primary demo: **https://splitreceipt.axiqo.xyz/splitreceipt/**
 
 Dedicated static Dogyun hosting. Verified HTTPS and an isolated `/var/www/splitreceipt/releases/` directory with a `current` symlink. Only public `dist/` files uploaded; no backend, port, dependency or secret uploaded.
 
-**INITIAL/HISTORICAL release checkpoint (2026-10-18 08:22:43 UTC):** label `20261018T080938Z-dd5013b`, four public dist files, 608,328 bytes, manifest SHA-256 `21ff2a604925a5e6b09f8cd623dca6b3848147ab67340eaae0387c4853c35215`. HTTPS manifest, TLS and redirect readback passed at that time. Root, slash and HTTP redirects preserved bill query strings. This release used the white/blue UI. A new publication must be independently verified after source export before being claimed as deployed.
+**Current release (21 October 2026):** commit `003f005b4030f664dfb95f9ccc79205f14e92b27`, label `20261021T071846Z-003f005`. Six UI/design source files adopted as exact Studio-export bytes. ZIP SHA-256 `b92cfe708d31acb756301b85eab742984ff50f0b5ab3830ec936ae4668181e14`. Light/forest navigation UI; desktop and mobile layouts at 360/390/768/1024px verified. Live browser on 21 October returned Bill 3 Settled 2/2 paid, 2/2 freshly verified receipts.
+
+**INITIAL/HISTORICAL release checkpoint (2026-10-18 08:22:43 UTC):** label `20261018T080938Z-dd5013b`, four public dist files, 608,328 bytes, manifest SHA-256 `21ff2a604925a5e6b09f8cd623dca6b3848147ab67340eaae0387c4853c35215`. HTTPS manifest, TLS and redirect readback passed at that time. This release used the white/blue UI.
 
 The temporary `codex.axiqo.xyz/splitreceipt` route has been removed. The old `a252937166.github.io/splitreceipt` hostname remains historical but is no longer the primary demo.
 
@@ -101,10 +103,26 @@ The contract and original application were created in Arc Studio. Standalone dep
 
 The initial public deployment used the white/blue UI at revision `566a2f24d2faee88d441115d92127e01685058e9`. A 17 October UI pass refined five UI files locally for amount-summary consistency, narrow layouts, contrast, touch targets, dialog keyboard focus and network-switch feedback, then synchronized them back to Studio; that resynchronization was independently verified (see [provenance](docs/PROVENANCE.md)).
 
-A later 18 October dark UI redesign used a local screenshot as a visual design reference only. Studio implemented the six dark UI files; subsequent Studio repairs corrected two misleading signature/permit labels, repaired mobile navigation at 390px, and restored the strict facts helper after an observed mismatch. The dark source candidate requires independent fresh ZIP readback, local build and live-release verification before claiming it as published.
+A later 18 October dark UI redesign used a local screenshot as a visual design reference only. Studio implemented the six dark UI files; subsequent Studio repairs corrected two misleading signature/permit labels, repaired mobile navigation at 390px, and restored the strict facts helper after an observed mismatch.
+
+The current 21 October light/forest redesign was authored in Studio: all six UI/design files adopted from the Studio export as exact bytes (ZIP SHA-256 `b92cfe708d31acb756301b85eab742984ff50f0b5ab3830ec936ae4668181e14`). A further Studio session applied five presentation corrections: narrow-viewport mobile nav (≤419px icon hide), bill totals CSS class (no break-all on amounts), Create bill preview visible on mobile, token aliases for the frozen wallet dialog, and correct dialog heading font override. This release was independently verified and published as `003f005b4030f664dfb95f9ccc79205f14e92b27`.
 
 See [provenance](docs/PROVENANCE.md) for archive hashes and validation boundaries.
+See [submission/EVIDENCE-INDEX.md](docs/submission/EVIDENCE-INDEX.md) for the full evidence map.
 
 Studio and testnet process recordings are retained locally. They have not been uploaded and no public video URL is claimed. Mainnet evidence, final contest materials and contest submission remain outside this testnet release.
 
 Original project code is available under the [MIT license](LICENSE). Dependencies retain their own licenses. This is an independent project and is not operated or endorsed by Circle.
+
+
+## Unpublished mainnet preparation (21 October 2026)
+
+The public site remains the Arc Testnet release `003f005b4030f664dfb95f9ccc79205f14e92b27`. This session prepares an unpublished adaptation with separate Arc mainnet (`5042`) context, a blank mainnet deployment address, read-only deployment identity checks and offline unsigned review material. Testnet (`5042002`) remains the default and its contract and receipts remain testnet evidence.
+
+`MAINNET_WRITES_ENABLED = false` is a source-level release lock compiled into this preparation build. Filling an address or changing environment, URL or wallet settings cannot enable mainnet writes. Future live use requires a separately reviewed source change plus explicit authorization and owner-reviewed signatures for deployment, bill creation and each payment. No deployment, onchain write/broadcast or paid upgrade is included in this preparation.
+
+The offline preparation tool produces `UNSIGNED_NOT_DEPLOYED_REQUIRES_INDEPENDENT_REVIEW` material, not a reviewed deployment or a signed transaction. Fresh artifact/runtime hashes are recorded separately from the historical testnet hash; metadata can cause a difference. See [mainnet preparation](docs/MAINNET-PREPARATION.md) for review gates and [the dated cost study](docs/submission/MAINNET-COST-STUDY.md) for fee assumptions and exclusions.
+
+Codex prepared source inputs, then actual file changes are applied through Arc Studio's official manual terminal without a paid upgrade. This is not a claim that Studio AI generated all source. The daily Studio agent quota was observed at 99%; an observed Download Code archive was an older snapshot, so the current terminal files require exact terminal export and independent readback. The [provenance record](docs/PROVENANCE.md) preserves the earlier mixed Studio/local history.
+
+The starting Studio baseline passed typecheck, 36 TypeScript tests, 35 Solidity tests and a production build. **Final adaptation in Studio: typecheck, 67 TypeScript tests, 38 Solidity tests (including three local 5042 preparation tests), 256 fuzz runs, production build, dependency isolation and offline unsigned-bundle generation passed. Exact terminal export and independent local typecheck, 67 TypeScript tests, 38 Solidity tests, 256 fuzz runs, build and dependency isolation passed. Local browser checks confirmed the disabled mainnet preview, wrong-context recovery and preserved legacy testnet Bill 3 with 2/2 freshly verified receipts. Live wallet connection/signing was not retested; one external wallet-extension injection error was observed. See tests/evidence/mainnet-preparation-2026-10-21.json.** Local EVM tests and unsigned artifacts are preparation evidence only; no new mainnet deployment, payment receipt, public video or competition submission is claimed.

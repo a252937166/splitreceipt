@@ -259,9 +259,17 @@ export function assembleCandidates(
 export function buildShareUrl(
   billId: bigint,
   verifiedHashes: readonly HintHash[],
+  scope: { key: 'testnet' | 'mainnet'; chainId: number; contract: string | null } = {
+    key: 'testnet', chainId: CHAIN, contract: CONTRACT,
+  },
 ): string {
   const url = new URL(window.location.href)
+  if (!scope.contract) throw new Error('Cannot share an unconfigured deployment.')
+  url.searchParams.set('network', scope.key)
+  url.searchParams.set('chainId', String(scope.chainId))
+  url.searchParams.set('contract', scope.contract.toLowerCase())
   url.searchParams.set('bill', billId.toString())
+  url.hash = ''
   url.searchParams.delete('receipts')
 
   // Case-insensitive dedup: normalise all to lowercase, then deduplicate, then slice.
