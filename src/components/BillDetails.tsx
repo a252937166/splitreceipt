@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   useAccount,
   useReadContract,
@@ -191,7 +191,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
   //   3. Hashes in historiesRef/histories/sessionReceiptHashes that fail re-verification
   //      are removed from ALL maps before the scan reads them.
   //   4. When a previously-scanned range had an invalidated hash removed, that scope's
-  //      history cursor is reset so the range can be re-scanned.
+  //      history cursor is reset so the range is re-scannable.
   //   5. The fallback log scan's trusted "already found" set is the current-run fresh
   //      verification result only — not old history.receipts or session hashes.
   //   6. Fresh fallback scan discoveries are saved as hash-only hints for future visits.
@@ -634,11 +634,17 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
   const isSettled = billData && totalPaid === payers.length
   const paidPct = payers.length > 0 ? Math.round((totalPaid / payers.length) * 100) : 0
 
+  /* ── JSX ───────────────────────────────────────────────────────────────────── */
   return (
     <div>
-      {/* ── Back + refresh ──────────────────────────────────────────── */}
+      {/* ── Toolbar row ──────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 mb-6">
-        <button type="button" onClick={onBack} className="btn-ghost" style={{ gap: '6px' }}>
+        <button
+          type="button"
+          onClick={onBack}
+          className="btn-ghost"
+          style={{ gap: '6px' }}
+        >
           <ArrowLeft size={14} aria-hidden="true" />
           New bill
         </button>
@@ -655,19 +661,19 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
         )}
       </div>
 
-      {/* ── Loading ─────────────────────────────────────────────────── */}
+      {/* ── Loading ────────────────────────────────────────────────── */}
       {isLoading && (
-        <div className="card p-10 flex flex-col items-center gap-3">
+        <div className="doc-surface p-12 flex flex-col items-center gap-3">
           <div className="spinner" aria-hidden="true" />
-          <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading bill…</p>
+          <p className="sr-small" style={{ color: 'var(--subdued)' }}>Loading bill…</p>
         </div>
       )}
 
-      {/* ── Read error ──────────────────────────────────────────────── */}
+      {/* ── Read error ─────────────────────────────────────────────── */}
       {readError && !isLoading && (
-        <div className="card p-8 flex flex-col items-center gap-4 text-center">
+        <div className="doc-surface p-10 flex flex-col items-center gap-4 text-center">
           <AlertCircle size={28} style={{ color: 'var(--danger)' }} aria-hidden="true" />
-          <p className="text-sm" style={{ color: 'var(--danger)' }}>
+          <p className="sr-small" style={{ color: 'var(--danger)' }}>
             {readError.message.includes('InvalidBillId')
               ? `Bill #${billId} does not exist.`
               : 'Could not load bill. Check your connection and try again.'}
@@ -678,416 +684,462 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
         </div>
       )}
 
-      {/* ── Bill content ────────────────────────────────────────────── */}
+      {/* ── Bill content ───────────────────────────────────────────── */}
       {billData && !isLoading && !readError && (
-        <div className="space-y-5">
+        <div className="layout-details">
 
-          {/* Title + meta */}
-          <div>
-            <h1 className="text-2xl mb-2 break-words" style={{ color: 'var(--ink)' }}>{title}</h1>
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-medium sr-mono" style={{ color: 'var(--subtle)' }}>
-                Bill #{billId.toString()}
-              </span>
-              <button
-                type="button"
-                onClick={handleCopyLink}
-                className="btn-ghost"
-                style={{ gap: '5px', padding: '4px 12px', minHeight: '44px', fontSize: '12px', borderRadius: '9999px' }}
-                aria-live="polite"
-                aria-label={copied ? 'Link copied' : 'Copy bill link'}
-              >
-                <Copy size={12} aria-hidden="true" />
-                {copied ? 'Copied!' : 'Copy bill link'}
-              </button>
-            </div>
-            {copyError && (
-              <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }} role="alert">{copyError}</p>
-            )}
-          </div>
+            {/* ── LEFT: receipt document ───────────────────────────── */}
+            <div className="doc-surface overflow-hidden">
 
-          {/* Stats bar */}
-          <div className="card p-5">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
-              <div>
-                <p className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Each pays</p>
-                <p className="text-xl font-bold tabular-nums sr-mono break-all" style={{ color: 'var(--ink)' }}>
-                  {shareDisplay}
-                  <span className="text-sm font-medium ml-1" style={{ color: 'var(--muted)' }}>USDC</span>
-                </p>
-              </div>
-              <div>
-                <p className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Total</p>
-                <p className="text-xl font-bold tabular-nums sr-mono break-all" style={{ color: 'var(--ink)' }}>
-                  {totalAmount}
-                  <span className="text-sm font-medium ml-1" style={{ color: 'var(--muted)' }}>USDC</span>
-                </p>
-              </div>
-              <div className="col-span-2 sm:col-span-1 sm:text-right">
-                <p className="text-xs mb-1" style={{ color: 'var(--muted)' }}>{totalPaid} of {payers.length} paid</p>
-                <p className="text-sm font-semibold" style={{ color: isSettled ? 'var(--success)' : 'var(--ink)' }}>
-                  {paidPct}%
-                </p>
-              </div>
-            </div>
-            <div
-              className="progress-bar"
-              role="progressbar"
-              aria-valuenow={paidPct}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Payment progress"
-            >
-              <div className="progress-bar__fill" style={{ width: `${paidPct}%` }} />
-            </div>
-          </div>
-
-          {/* Settled banner */}
-          {isSettled && (
-            <div className="alert-success">
-              <CheckCircle2 size={18} aria-hidden="true" style={{ flexShrink: 0 }} />
-              <span className="font-medium">Bill settled. Everyone has paid their share.</span>
-            </div>
-          )}
-
-          {/* Payment receipts */}
-          <div className="card overflow-hidden">
-            <div className="flex items-center justify-between px-5 pt-5 pb-3">
-              <h2 className="text-base font-semibold" style={{ color: 'var(--ink)' }}>Payment receipts</h2>
-              {totalPaid > 0 && (
-                <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: allPaidReceiptsFound ? 'var(--success)' : 'var(--muted)' }}>
-                  {allPaidReceiptsFound
-                    ? <><CheckCircle2 size={13} aria-hidden="true" /> {verifiedPaidCount} of {totalPaid} payment receipts verified</>
-                    : isAnyLookupLoading
-                      ? <><div className="spinner" style={{ width: '12px', height: '12px' }} aria-hidden="true" /> Looking up receipts…</>
-                      : <>{verifiedPaidCount} of {totalPaid} payment receipts verified</>
-                  }
-                </div>
-              )}
-            </div>
-
-            {/* Payer table — desktop */}
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              {/* Document header */}
               <div
-                className="hidden sm:grid grid-cols-[2rem_1fr_auto_auto] gap-3 px-5 py-2 text-xs font-medium"
-                style={{ color: 'var(--subtle)', borderBottom: '1px solid var(--border)' }}
+                className="px-6 py-5"
+                style={{ borderBottom: '1px solid var(--border)' }}
               >
-                <span>#</span>
-                <span>Payer (wallet)</span>
-                <span>Status</span>
-                <span>Receipt</span>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="sr-meta font-semibold mb-1" style={{ color: 'var(--subdued)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      Bill #{billId.toString()}
+                    </p>
+                    <h1 className="sr-heading-lg break-words" style={{ color: 'var(--ink)' }}>{title}</h1>
+                  </div>
+                  {isSettled && (
+                    <span
+                      className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full sr-meta font-semibold"
+                      style={{ background: 'var(--success-bg)', color: 'var(--success-ink)', border: '1px solid var(--success-border)' }}
+                    >
+                      <CheckCircle2 size={13} aria-hidden="true" /> Settled
+                    </span>
+                  )}
+                </div>
+
+                {/* Copy link */}
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="btn-ghost"
+                    style={{ gap: '5px', padding: '4px 12px', minHeight: '36px', fontSize: '12px' }}
+                    aria-live="polite"
+                    aria-label={copied ? 'Link copied' : 'Copy bill link'}
+                  >
+                    <Copy size={12} aria-hidden="true" />
+                    {copied ? 'Copied!' : 'Copy link'}
+                  </button>
+                  {copyError && (
+                    <p className="sr-meta" style={{ color: 'var(--danger)' }} role="alert">{copyError}</p>
+                  )}
+                </div>
               </div>
 
-              {payers.map((p, i) => {
-                const isMe = p.toLowerCase() === address?.toLowerCase()
-                const paid = paidStates[i]
-                const payerLc = p.toLowerCase()
-                const payerReceiptHash = receiptHashes[payerLc]
-                const isVerifiedFresh = paid && Boolean(freshVerified[payerLc])
-                const isDisplayOnly = paid && Boolean(payerReceiptHash) && !isVerifiedFresh
-                const payerTxUrl = paid && payerReceiptHash
-                  ? `${chain.explorerBase}/tx/${payerReceiptHash}`
-                  : null
+              {/* Totals summary */}
+              <div
+                className="bill-totals"
+                style={{ borderBottom: '1px solid var(--border)' }}
+              >
+                {[
+                  { label: 'Each pays', value: `${shareDisplay} USDC` },
+                  { label: 'Total', value: `${totalAmount} USDC` },
+                  { label: 'Paid', value: `${totalPaid} / ${payers.length}` },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bill-total-cell">
+                    <p className="sr-meta mb-1" style={{ color: 'var(--subdued)' }}>{label}</p>
+                    <p className="bill-total-value">{value}</p>
+                  </div>
+                ))}
+              </div>
 
-                return (
-                  <div key={p} className="px-5 py-3">
-                    {/* Desktop row */}
-                    <div className="hidden sm:grid grid-cols-[2rem_1fr_auto_auto] gap-3 items-center">
-                      <span className="text-sm" style={{ color: 'var(--subtle)' }}>{i + 1}</span>
-                      <div className="addr-cell flex items-center gap-2 min-w-0">
-                        <a
-                          href={`${chain.explorerBase}/address/${p}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="sr-mono text-sm min-w-0 addr-cell"
-                          style={{ color: isMe ? 'var(--accent-hover)' : 'var(--ink-2)' }}
-                          title={p}
-                        >
-                          {fmtAddress(p)}
-                        </a>
-                        {isMe && (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0"
-                            style={{ background: 'var(--info-bg)', color: 'var(--info-ink)' }}>
-                            you
-                          </span>
-                        )}
-                      </div>
-                      <div>
-                        {paid
-                          ? <span className="badge-paid"><CheckCircle2 size={11} aria-hidden="true" />Paid</span>
-                          : <span className="badge-unpaid">Unpaid</span>
-                        }
-                      </div>
-                      <div className="min-w-[110px] text-right">
-                        {payerTxUrl ? (
-                          <div className="inline-flex flex-col items-end gap-0.5">
-                            <a
-                              href={payerTxUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex min-h-[44px] items-center gap-1 text-sm font-medium"
-                              style={{ color: 'var(--accent-hover)' }}
-                            >
-                              View receipt <ExternalLink size={12} aria-hidden="true" />
-                            </a>
-                            {isDisplayOnly && (
-                              <span className="text-xs" style={{ color: 'var(--subtle)' }}>
-                                awaiting verification
-                              </span>
-                            )}
-                          </div>
-                        ) : paid ? (
-                          <span className="text-xs" style={{ color: 'var(--subtle)' }}>
-                            {isAnyLookupLoading ? 'Looking up…' : '—'}
-                          </span>
-                        ) : null}
-                      </div>
+              {/* Progress bar */}
+              <div
+                className="px-6 pt-4 pb-3"
+                style={{ borderBottom: '1px solid var(--border)' }}
+              >
+                <div
+                  className="progress-bar"
+                  role="progressbar"
+                  aria-valuenow={paidPct}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Payment progress"
+                >
+                  <div className="progress-bar__fill" style={{ width: `${paidPct}%` }} />
+                </div>
+                <div className="flex items-center justify-between mt-1.5">
+                  <p className="sr-meta" style={{ color: 'var(--subdued)' }}>
+                    {totalPaid} of {payers.length} paid
+                  </p>
+                  {totalPaid > 0 && (
+                    <div className="flex items-center gap-1 sr-meta" style={{ color: allPaidReceiptsFound ? 'var(--success)' : 'var(--subdued)' }}>
+                      {allPaidReceiptsFound
+                        ? <><CheckCircle2 size={12} aria-hidden="true" /> {verifiedPaidCount}/{totalPaid} receipts verified</>
+                        : isAnyLookupLoading
+                          ? <><div className="spinner" style={{ width: '11px', height: '11px' }} aria-hidden="true" /> Looking up receipts…</>
+                          : <>{verifiedPaidCount}/{totalPaid} receipts verified</>
+                      }
                     </div>
+                  )}
+                </div>
+              </div>
 
-                    {/* Mobile row */}
-                    <div className="sm:hidden flex items-start gap-3">
-                      <div className="mt-0.5">
-                        {paid
-                          ? <CheckCircle2 size={16} style={{ color: 'var(--success)' }} aria-label="Paid" />
-                          : <Clock size={16} style={{ color: 'var(--subtle)' }} aria-label="Unpaid" />
-                        }
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="sr-mono text-sm break-all" style={{ color: isMe ? 'var(--accent-hover)' : 'var(--ink-2)' }}>
-                            {p}
-                          </span>
+              {/* Payer ledger header */}
+              <div
+                className="hidden sm:grid px-6 py-2"
+                style={{
+                  gridTemplateColumns: '1.5rem 1fr auto auto',
+                  gap: '12px',
+                  borderBottom: '1px solid var(--border)',
+                  background: 'var(--surface-subtle)',
+                }}
+              >
+                <span className="sr-meta font-semibold" style={{ color: 'var(--subdued)' }}>#</span>
+                <span className="sr-meta font-semibold" style={{ color: 'var(--subdued)' }}>Payer</span>
+                <span className="sr-meta font-semibold" style={{ color: 'var(--subdued)' }}>Status</span>
+                <span className="sr-meta font-semibold text-right" style={{ color: 'var(--subdued)' }}>Receipt</span>
+              </div>
+
+              {/* Payer rows */}
+              <div>
+                {payers.map((p, i) => {
+                  const isMe = p.toLowerCase() === address?.toLowerCase()
+                  const paid = paidStates[i]
+                  const payerLc = p.toLowerCase()
+                  const payerReceiptHash = receiptHashes[payerLc]
+                  const isVerifiedFresh = paid && Boolean(freshVerified[payerLc])
+                  const isDisplayOnly = paid && Boolean(payerReceiptHash) && !isVerifiedFresh
+                  const payerTxUrl = paid && payerReceiptHash
+                    ? `${chain.explorerBase}/tx/${payerReceiptHash}`
+                    : null
+
+                  return (
+                    <div
+                      key={p}
+                      className="px-6 py-3"
+                      style={{ borderBottom: i < payers.length - 1 ? '1px solid var(--border)' : 'none' }}
+                    >
+                      {/* Desktop row */}
+                      <div
+                        className="hidden sm:grid items-center"
+                        style={{ gridTemplateColumns: '1.5rem 1fr auto auto', gap: '12px' }}
+                      >
+                        <span className="sr-meta" style={{ color: 'var(--subdued)' }}>{i + 1}</span>
+                        <div className="flex items-center gap-2 min-w-0 addr-cell">
+                          <a
+                            href={`${chain.explorerBase}/address/${p}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="sr-mono sr-small min-w-0 addr-cell"
+                            style={{ color: isMe ? 'var(--primary)' : 'var(--ink-2)' }}
+                            title={p}
+                          >
+                            {fmtAddress(p)}
+                          </a>
                           {isMe && (
-                            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0"
-                              style={{ background: 'var(--info-bg)', color: 'var(--info-ink)' }}>
+                            <span
+                              className="sr-meta font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                              style={{ background: 'var(--success-bg)', color: 'var(--success-ink)', border: '1px solid var(--success-border)' }}
+                            >
                               you
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                        <div>
                           {paid
-                            ? <span className="badge-paid text-xs"><CheckCircle2 size={10} aria-hidden="true" />Paid</span>
-                            : <span className="badge-unpaid text-xs">Unpaid</span>
+                            ? <span className="badge-paid"><CheckCircle2 size={11} aria-hidden="true" />Paid</span>
+                            : <span className="badge-unpaid">Unpaid</span>
                           }
-                          {payerTxUrl && (
-                            <div className="flex flex-col gap-0.5">
+                        </div>
+                        <div className="text-right" style={{ minWidth: '100px' }}>
+                          {payerTxUrl ? (
+                            <div className="inline-flex flex-col items-end gap-0.5">
                               <a
                                 href={payerTxUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex min-h-[44px] items-center gap-1 text-sm font-medium"
-                                style={{ color: 'var(--accent-hover)' }}
+                                className="inline-flex min-h-[36px] items-center gap-1 sr-small font-medium"
+                                style={{ color: 'var(--primary)' }}
                               >
                                 View receipt <ExternalLink size={11} aria-hidden="true" />
                               </a>
                               {isDisplayOnly && (
-                                <span className="text-xs" style={{ color: 'var(--subtle)' }}>
+                                <span className="sr-meta" style={{ color: 'var(--subdued)' }}>
                                   awaiting verification
                                 </span>
                               )}
                             </div>
-                          )}
+                          ) : paid ? (
+                            <span className="sr-meta" style={{ color: 'var(--subdued)' }}>
+                              {isAnyLookupLoading ? 'Looking up…' : '—'}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {/* Mobile row */}
+                      <div className="sm:hidden flex items-start gap-3">
+                        <div className="mt-0.5 shrink-0">
+                          {paid
+                            ? <CheckCircle2 size={16} style={{ color: 'var(--success)' }} aria-label="Paid" />
+                            : <Clock size={16} style={{ color: 'var(--subdued)' }} aria-label="Unpaid" />
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="sr-mono sr-small break-all" style={{ color: isMe ? 'var(--primary)' : 'var(--ink-2)' }}>
+                              {p}
+                            </span>
+                            {isMe && (
+                              <span
+                                className="sr-meta font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                                style={{ background: 'var(--success-bg)', color: 'var(--success-ink)', border: '1px solid var(--success-border)' }}
+                              >
+                                you
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                            {paid
+                              ? <span className="badge-paid sr-meta"><CheckCircle2 size={10} aria-hidden="true" />Paid</span>
+                              : <span className="badge-unpaid sr-meta">Unpaid</span>
+                            }
+                            {payerTxUrl && (
+                              <div className="flex flex-col gap-0.5">
+                                <a
+                                  href={payerTxUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex min-h-[44px] items-center gap-1 sr-small font-medium"
+                                  style={{ color: 'var(--primary)' }}
+                                >
+                                  View receipt <ExternalLink size={11} aria-hidden="true" />
+                                </a>
+                                {isDisplayOnly && (
+                                  <span className="sr-meta" style={{ color: 'var(--subdued)' }}>
+                                    awaiting verification
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Recipient */}
-            <div className="px-5 pt-4 pb-5 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
-              <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--ink)' }}>Recipient</h3>
-              <p className="text-xs mb-1.5" style={{ color: 'var(--muted)' }}>
-                Recipient (receives {totalAmount} USDC)
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="sr-mono text-sm break-all" style={{ color: 'var(--ink-2)' }}>{fmtAddress(recipient)}</span>
-                <a
-                  href={`${chain.explorerBase}/address/${recipient}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="View recipient on explorer"
-                  className="touch-target inline-flex items-center justify-center"
-                  style={{ color: 'var(--subtle)' }}
-                >
-                  <ExternalLink size={13} aria-hidden="true" />
-                </a>
+                  )
+                })}
               </div>
-            </div>
 
-            {/* Receipt verification details (collapsible) */}
-            {totalPaid > 0 && (
-              <div className="px-5 pb-4">
-                <button
-                  type="button"
-                  className="collapsible-trigger"
-                  onClick={() => setDetailsOpen(o => !o)}
-                  aria-expanded={detailsOpen}
-                  aria-controls="receipt-verification-details"
-                >
-                  <ChevronRight
-                    size={14}
-                    className={`collapsible-chevron${detailsOpen ? ' collapsible-chevron--open' : ''}`}
-                    aria-hidden="true"
-                  />
-                  Receipt verification details
-                </button>
-
-                {detailsOpen && (
-                  <div id="receipt-verification-details" aria-live="polite" className="space-y-2 pb-2">
-                    <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                      {verifiedPaidCount} of {totalPaid} paid receipt{totalPaid === 1 ? '' : 's'} verified onchain.
-                      {logStatus?.loading && ' Scanning blocks…'}
-                      {currentHintStatus?.loading && !logStatus?.loading && ' Checking known transactions…'}
-                    </p>
-
-                    {history?.scannedFrom !== null && history?.scannedFrom !== undefined && history.scannedTo !== null && (
-                      <p className="text-xs" style={{ color: 'var(--subtle)' }}>
-                        Scanned blocks {history.scannedFrom.toLocaleString()}–{history.scannedTo.toLocaleString()}.
-                        {allHistorySearched
-                          ? ` Full range from ${SPLIT_RECEIPT_DEPLOY_BLOCK === null ? 'genesis' : 'deployment block'} through block ${history.lastHead?.toLocaleString()} checked.`
-                          : olderBlocksRemain && newerBlocksRemain ? ' Newer and older blocks remain.'
-                          : newerBlocksRemain ? ' Newer blocks remain.'
-                          : olderBlocksRemain ? ' Older blocks remain.' : ''}
-                      </p>
-                    )}
-
-                    {currentHintStatus?.rpcError && (
-                      <p className="text-xs" style={{ color: 'var(--muted)' }} role="alert">
-                        Fast-path lookup paused — existing links kept. {currentHintStatus.rpcError}
-                      </p>
-                    )}
-
-                    {logStatus?.error && (
-                      <p className="text-xs" style={{ color: 'var(--danger)' }} role="alert">
-                        {logStatus.error}
-                      </p>
-                    )}
-
-                    {!isAnyLookupLoading && !logStatus?.error && allHistorySearched && !allPaidReceiptsFound && (
-                      <p className="text-xs" style={{ color: 'var(--subtle)' }}>
-                        Some receipts were not returned by this RPC. The event index may still be catching up. Retry or check the explorer.
-                      </p>
-                    )}
-
-                    {!isAnyLookupLoading && (!allPaidReceiptsFound || logStatus?.error) && (
-                      <button
-                        type="button"
-                        onClick={allHistorySearched && !logStatus?.error ? handleRetryFullHistory : handleRefresh}
-                        className="btn-ghost mt-1"
-                        style={{ fontSize: '12px', padding: '4px 10px', minHeight: '44px' }}
-                      >
-                        <RefreshCw size={12} aria-hidden="true" />
-                        {logStatus?.error ? 'Retry receipt lookup'
-                          : allHistorySearched ? 'Retry full receipt history'
-                          : 'Continue receipt history'}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Wrong chain — pay prompt */}
-          {isWrongChain && myIndex !== -1 && !myPaidState && (
-            <div className="alert-warn" role="alert">
-              <AlertCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
-              <span className="flex-1">Switch to Arc Testnet to pay.</span>
-              <button
-                type="button"
-                className="btn-ghost"
-                style={{ minHeight: '44px', padding: '4px 12px', fontSize: '13px', flexShrink: 0 }}
-                onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
-                disabled={isSwitching}
-                aria-busy={isSwitching}
+              {/* Recipient row */}
+              <div
+                className="px-6 py-4"
+                style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-subtle)' }}
               >
-                {isSwitching ? 'Switching…' : 'Switch'}
-              </button>
-            </div>
-          )}
-          {isWrongChain && myIndex !== -1 && !myPaidState && switchError && (
-            <p role="alert" className="text-sm" style={{ color: 'var(--danger)' }}>
-              {networkSwitchErrorMessage(switchError)}
-            </p>
-          )}
-
-          {/* Pay CTA */}
-          {isConnected && myIndex !== -1 && !myPaidState && !isWrongChain && (
-            <div className="card p-5 space-y-3">
-              <h2 className="text-base font-semibold" style={{ color: 'var(--ink)' }}>Your payment</h2>
-
-              {isCurrentPayment && (writeError || confirmationError || receiptData?.status === 'reverted') && (
-                <div className="alert-danger" role="alert">
-                  <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }} />
-                  <span>
-                    {receiptData?.status === 'reverted'
-                      ? 'Transaction reverted. No payment was recorded.'
-                      : parseOnchainError(writeError ?? confirmationError)}
+                <p className="sr-meta font-semibold mb-1" style={{ color: 'var(--subdued)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                  Recipient
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="sr-mono sr-small break-all" style={{ color: 'var(--ink-2)' }}>{fmtAddress(recipient)}</span>
+                  <a
+                    href={`${chain.explorerBase}/address/${recipient}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="View recipient on explorer"
+                    className="touch-target inline-flex items-center justify-center"
+                    style={{ color: 'var(--subdued)' }}
+                  >
+                    <ExternalLink size={13} aria-hidden="true" />
+                  </a>
+                  <span className="sr-meta" style={{ color: 'var(--subdued)' }}>
+                    Receives {totalAmount} USDC
                   </span>
                 </div>
+              </div>
+
+              {/* Receipt verification details (collapsible) */}
+              {totalPaid > 0 && (
+                <div className="px-6 pb-4">
+                  <button
+                    type="button"
+                    className="collapsible-trigger"
+                    onClick={() => setDetailsOpen(o => !o)}
+                    aria-expanded={detailsOpen}
+                    aria-controls="receipt-verification-details"
+                  >
+                    <ChevronRight
+                      size={14}
+                      className={`collapsible-chevron${detailsOpen ? ' collapsible-chevron--open' : ''}`}
+                      aria-hidden="true"
+                    />
+                    Receipt verification details
+                  </button>
+
+                  {detailsOpen && (
+                    <div id="receipt-verification-details" aria-live="polite" className="space-y-2 pb-2">
+                      <p className="sr-meta" style={{ color: 'var(--subdued)' }}>
+                        {verifiedPaidCount} of {totalPaid} paid receipt{totalPaid === 1 ? '' : 's'} verified onchain.
+                        {logStatus?.loading && ' Scanning blocks…'}
+                        {currentHintStatus?.loading && !logStatus?.loading && ' Checking known transactions…'}
+                      </p>
+
+                      {history?.scannedFrom !== null && history?.scannedFrom !== undefined && history.scannedTo !== null && (
+                        <p className="sr-meta" style={{ color: 'var(--subdued)' }}>
+                          Scanned blocks {history.scannedFrom.toLocaleString()}–{history.scannedTo.toLocaleString()}.
+                          {allHistorySearched
+                            ? ` Full range from ${SPLIT_RECEIPT_DEPLOY_BLOCK === null ? 'genesis' : 'deployment block'} through block ${history.lastHead?.toLocaleString()} checked.`
+                            : olderBlocksRemain && newerBlocksRemain ? ' Newer and older blocks remain.'
+                            : newerBlocksRemain ? ' Newer blocks remain.'
+                            : olderBlocksRemain ? ' Older blocks remain.' : ''}
+                        </p>
+                      )}
+
+                      {currentHintStatus?.rpcError && (
+                        <p className="sr-meta" style={{ color: 'var(--subdued)' }} role="alert">
+                          Fast-path lookup paused — existing links kept. {currentHintStatus.rpcError}
+                        </p>
+                      )}
+
+                      {logStatus?.error && (
+                        <p className="sr-meta" style={{ color: 'var(--danger)' }} role="alert">
+                          {logStatus.error}
+                        </p>
+                      )}
+
+                      {!isAnyLookupLoading && !logStatus?.error && allHistorySearched && !allPaidReceiptsFound && (
+                        <p className="sr-meta" style={{ color: 'var(--subdued)' }}>
+                          Some receipts were not returned by this RPC. The event index may still be catching up. Retry or check the explorer.
+                        </p>
+                      )}
+
+                      {!isAnyLookupLoading && (!allPaidReceiptsFound || logStatus?.error) && (
+                        <button
+                          type="button"
+                          onClick={allHistorySearched && !logStatus?.error ? handleRetryFullHistory : handleRefresh}
+                          className="btn-ghost mt-1"
+                          style={{ fontSize: '12px', padding: '4px 10px', minHeight: '36px' }}
+                        >
+                          <RefreshCw size={12} aria-hidden="true" />
+                          {logStatus?.error ? 'Retry receipt lookup'
+                            : allHistorySearched ? 'Retry full receipt history'
+                            : 'Continue receipt history'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ── RIGHT: action panel ───────────────────────────────── */}
+            <div className="space-y-4" style={{ position: 'sticky', top: '32px' }}>
+
+              {/* Wrong chain */}
+              {isWrongChain && myIndex !== -1 && !myPaidState && (
+                <div className="alert-warn" role="alert">
+                  <AlertCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
+                  <span className="flex-1 sr-small">Switch to Arc Testnet to pay.</span>
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    style={{ minHeight: '36px', padding: '4px 12px', fontSize: '12px', flexShrink: 0 }}
+                    onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
+                    disabled={isSwitching}
+                    aria-busy={isSwitching}
+                  >
+                    {isSwitching ? 'Switching…' : 'Switch'}
+                  </button>
+                </div>
+              )}
+              {isWrongChain && myIndex !== -1 && !myPaidState && switchError && (
+                <p role="alert" className="sr-small" style={{ color: 'var(--danger)' }}>
+                  {networkSwitchErrorMessage(switchError)}
+                </p>
               )}
 
-              {isCurrentPayment && replacementNotice && (
-                <p className="text-xs" style={{ color: 'var(--muted)' }}>{replacementNotice}</p>
-              )}
+              {/* Pay CTA */}
+              {isConnected && myIndex !== -1 && !myPaidState && !isWrongChain && (
+                <div className="doc-surface p-5 space-y-3">
+                  <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '4px' }}>
+                    <p className="sr-meta font-semibold" style={{ color: 'var(--subdued)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your payment</p>
+                    <p className="sr-heading-md sr-mono mt-1" style={{ color: 'var(--ink)' }}>{shareDisplay} <span className="sr-small font-medium" style={{ color: 'var(--subdued)' }}>USDC</span></p>
+                  </div>
 
-              {(isPending || isConfirming) && (
-                <div className="alert-info" aria-live="polite">
-                  <div className="spinner" style={{ width: '14px', height: '14px', marginTop: '1px' }} aria-hidden="true" />
-                  <span className="flex-1 text-sm">
-                    {isCurrentPayment
-                      ? isPending ? 'Waiting for wallet confirmation…' : 'Confirming on chain…'
-                      : `A payment from ${fmtAddress(paymentContext?.payer ?? '')} is still in progress.`}
-                  </span>
-                  {pendingTxUrl && (
-                    <a href={pendingTxUrl} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs shrink-0"
-                      style={{ color: 'var(--accent-hover)' }}
-                      aria-label="View pending transaction on explorer">
-                      <ExternalLink size={12} aria-hidden="true" />
-                    </a>
+                  {isCurrentPayment && (writeError || confirmationError || receiptData?.status === 'reverted') && (
+                    <div className="alert-danger" role="alert">
+                      <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }} />
+                      <span>
+                        {receiptData?.status === 'reverted'
+                          ? 'Transaction reverted. No payment was recorded.'
+                          : parseOnchainError(writeError ?? confirmationError)}
+                      </span>
+                    </div>
+                  )}
+
+                  {isCurrentPayment && replacementNotice && (
+                    <p className="sr-meta" style={{ color: 'var(--subdued)' }}>{replacementNotice}</p>
+                  )}
+
+                  {(isPending || isConfirming) && (
+                    <div className="alert-info" aria-live="polite">
+                      <div className="spinner" style={{ width: '14px', height: '14px' }} aria-hidden="true" />
+                      <span className="flex-1 sr-small">
+                        {isCurrentPayment
+                          ? isPending ? 'Waiting for wallet confirmation…' : 'Confirming on chain…'
+                          : `A payment from ${fmtAddress(paymentContext?.payer ?? '')} is still in progress.`}
+                      </span>
+                      {pendingTxUrl && (
+                        <a href={pendingTxUrl} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 sr-meta shrink-0"
+                          style={{ color: 'var(--primary)' }}
+                          aria-label="View pending transaction on explorer">
+                          <ExternalLink size={12} aria-hidden="true" />
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {isConfirmedPayment && receiptData && (
+                    <div className="alert-success">
+                      <CheckCircle2 size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
+                      <span className="flex-1 font-medium">Payment confirmed!</span>
+                      <a
+                        href={`${chain.explorerBase}/tx/${receiptData.transactionHash}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 sr-small font-semibold shrink-0"
+                        style={{ color: 'var(--success)' }}
+                      >
+                        View receipt <ExternalLink size={12} aria-hidden="true" />
+                      </a>
+                    </div>
+                  )}
+
+                  {!isPending && !isConfirming && !isConfirmedPayment && (
+                    <button
+                      type="button"
+                      onClick={handlePay}
+                      className="btn-primary"
+                    >
+                      Pay {shareDisplay} USDC
+                    </button>
                   )}
                 </div>
               )}
 
-              {isConfirmedPayment && receiptData && (
+              {/* Settled */}
+              {isSettled && (
                 <div className="alert-success">
-                  <CheckCircle2 size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
-                  <span className="flex-1 font-medium">Payment confirmed!</span>
-                  <a
-                    href={`${chain.explorerBase}/tx/${receiptData.transactionHash}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-sm font-semibold shrink-0"
-                    style={{ color: 'var(--success)' }}
-                  >
-                    View receipt <ExternalLink size={12} aria-hidden="true" />
-                  </a>
+                  <CheckCircle2 size={16} aria-hidden="true" style={{ flexShrink: 0 }} />
+                  <span className="font-medium sr-small">Bill settled. Everyone has paid.</span>
                 </div>
               )}
 
-              {!isPending && !isConfirming && !isConfirmedPayment && (
-                <button
-                  type="button"
-                  onClick={handlePay}
-                  className="btn-primary"
-                >
-                  Pay {shareDisplay} USDC
-                </button>
+              {/* Not connected */}
+              {!isConnected && !isSettled && (
+                <div className="alert-info">
+                  <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0 }} />
+                  <span className="sr-small" style={{ color: 'var(--info-ink)' }}>
+                    Connect a wallet to pay your share.
+                  </span>
+                </div>
               )}
             </div>
-          )}
-
-          {/* Not connected */}
-          {!isConnected && !isSettled && (
-            <div className="alert-info">
-              <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0 }} />
-              <span className="text-sm" style={{ color: 'var(--info-ink)' }}>
-                Connect a wallet using the button in the header to pay your share.
-              </span>
-            </div>
-          )}
         </div>
       )}
     </div>

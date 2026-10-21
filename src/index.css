@@ -2,104 +2,131 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Design tokens — dark workspace ────────────────────────────────────────── */
+/* ── Design tokens — bright calm workspace ──────────────────────────────────── */
 :root {
   /* Canvas / surfaces */
-  --bg:               #07090f;
-  --surface:          #101520;
-  --surface-raised:   #161d2e;
-  --surface-muted:    #0d1018;
-  --surface-input:    #0a0d15;
+  --canvas:           #F3F6F4;
+  --surface:          #FFFFFF;
+  --surface-subtle:   #EDF2EF;
+  --surface-input:    #FFFFFF;
 
-  /* Type */
-  --ink:              #e9eef7;
-  --ink-2:            #c4cfe0;
-  --muted:            #aeb8c8;
-  --subtle:           #6b7a91;
+  /* Typography */
+  --ink:              #152A24;
+  --ink-2:            #2E4A3E;
+  --secondary:        #52665C;
+  --subdued:          #607267;
+  --placeholder:      #607267;
 
   /* Borders */
-  --border:           rgba(174, 184, 200, 0.12);
-  --border-strong:    rgba(174, 184, 200, 0.28);
+  --border:           #D5E0D9;
+  --border-strong:    #B8CBBF;
 
-  /* Actions — sky/teal palette */
-  --accent:           #1e3a5f;
-  --accent-solid:     #2563a8;
-  --accent-hover:     #7dd3fc;
-  --accent-fg:        #ffffff;
-  --focus:            #5eead4;
+  /* Primary action — forest emerald */
+  --primary:          #176B57;
+  --primary-hover:    #125548;
+  --primary-fg:       #FFFFFF;
 
-  /* Status — teal success, amber warn, rose danger */
-  --success:          #5eead4;
-  --success-bg:       rgba(94, 234, 212, 0.10);
-  --success-border:   rgba(94, 234, 212, 0.25);
-  --warn-bg:          rgba(251, 191, 36, 0.10);
-  --warn-border:      rgba(251, 191, 36, 0.30);
-  --warn-ink:         #fbbf24;
-  --danger:           #f87171;
-  --danger-bg:        rgba(248, 113, 113, 0.10);
-  --danger-border:    rgba(248, 113, 113, 0.25);
+  /* Focus */
+  --focus:            #176B57;
+
+  /* Success */
+  --success:          #145C44;
+  --success-bg:       #E8F5EE;
+  --success-border:   #A8D5BB;
+  --success-ink:      #145C44;
+
+  /* Warning */
+  --warn-ink:         #7A4A00;
+  --warn-bg:          #FEF3C7;
+  --warn-border:      #F5D07A;
+
+  /* Danger */
+  --danger:           #991B1B;
+  --danger-bg:        #FEE2E2;
+  --danger-border:    #FCA5A5;
+
+  /* Info */
+  --info-ink:         #1E3A5F;
+  --info-bg:          #EFF6FF;
+  --info-border:      #BFDBFE;
+
+  /* Navigation rail */
+  --rail-bg:          #152A24;
+  --rail-ink:         #A8BCAF;
+  --rail-ink-active:  #FFFFFF;
+  --rail-hover:       rgba(255,255,255,0.08);
+  --rail-active-bg:   rgba(255,255,255,0.12);
 
   /* Progress */
-  --progress-track:   rgba(174, 184, 200, 0.12);
-  --progress-fill:    #5eead4;
+  --progress-track:   #D5E0D9;
+  --progress-fill:    #176B57;
 
-  /* Info strip */
-  --info-bg:          rgba(125, 211, 252, 0.08);
-  --info-border:      rgba(125, 211, 252, 0.18);
-  --info-ink:         #7dd3fc;
+  /* Aliases required by wallet-ui.tsx */
+  --muted:            var(--subdued);
+  --surface-raised:   var(--surface-subtle);
 }
 
-/* ── Reset ─────────────────────────────────────────────────────────────────── */
+/* ── Reset ──────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
-/* ── Base ──────────────────────────────────────────────────────────────────── */
-html { -webkit-text-size-adjust: 100%; color-scheme: dark; }
+/* ── Base ───────────────────────────────────────────────────────────────────── */
+html { -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--canvas);
   color: var(--ink);
-  /* Local serif headings: Iowan Old Style → Georgia → generic */
-  font-family: system-ui, -apple-system, 'Avenir Next', 'Avenir', 'Segoe UI', Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
+  font-family: 'Avenir Next', 'Avenir', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
   min-height: 100dvh;
 }
 
-/* ── Headings use local serif stack ────────────────────────────────────────── */
-h1, h2, .sr-serif {
-  font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, 'Times New Roman', serif;
+/* All headings use the same sans stack — no serif */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Avenir Next', 'Avenir', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
-/* ── Focus ring ────────────────────────────────────────────────────────────── */
+/* Override serif heading inside wallet dialog — wallet-ui.tsx is frozen; CSS targets its markup */
+section[role="dialog"] h2 {
+  font-family: 'Avenir Next', 'Avenir', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif !important;
+}
+
+/* ── Focus ring ─────────────────────────────────────────────────────────────── */
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
-/* ── Monospace: addresses and amounts ──────────────────────────────────────── */
+/* ── Monospace: addresses, hashes, amounts ──────────────────────────────────── */
 .sr-mono {
   font-family: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Touch targets ─────────────────────────────────────────────────────────── */
-.touch-target {
-  min-height: 44px;
-  min-width: 44px;
-}
+/* ── Type scale ─────────────────────────────────────────────────────────────── */
+.sr-heading-xl  { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.sr-heading-lg  { font-size: 22px; font-weight: 700; letter-spacing: -0.015em; }
+.sr-heading-md  { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+.sr-heading-sm  { font-size: 14px; font-weight: 600; }
+.sr-body        { font-size: 15px; }
+.sr-small       { font-size: 13px; }
+.sr-meta        { font-size: 12px; }
 
-/* ── Address overflow safety ───────────────────────────────────────────────── */
+/* ── Touch target ───────────────────────────────────────────────────────────── */
+.touch-target { min-height: 44px; min-width: 44px; }
+
+/* ── Address overflow safety ────────────────────────────────────────────────── */
 .addr-cell {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Mobile: wrap full address */
 @media (max-width: 639px) {
   .addr-cell {
     white-space: normal;
@@ -109,39 +136,45 @@ h1, h2, .sr-serif {
   }
 }
 
-/* ── Card panel ────────────────────────────────────────────────────────────── */
-.card {
+/* ── Document surface (receipt/invoice card) ────────────────────────────────── */
+.doc-surface {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
-}
-.card-raised {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
 }
 
-/* ── Input ─────────────────────────────────────────────────────────────────── */
+/* Fine horizontal rule as used on receipts */
+.doc-rule {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0;
+}
+.doc-rule--dashed {
+  border-top-style: dashed;
+}
+
+/* ── Input ──────────────────────────────────────────────────────────────────── */
 .sr-input {
   width: 100%;
   background: var(--surface-input);
   border: 1px solid var(--border-strong);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 14px;
   font-size: 15px;
+  font-family: inherit;
   color: var(--ink);
   line-height: 1.4;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.sr-input::placeholder { color: var(--subtle); }
+.sr-input::placeholder { color: var(--placeholder); }
 .sr-input:focus-visible {
-  border-color: var(--focus);
+  border-color: var(--primary);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.15);
+  box-shadow: 0 0 0 3px rgba(23, 107, 87, 0.12);
 }
 
-/* ── Primary button ────────────────────────────────────────────────────────── */
+/* ── Primary button ─────────────────────────────────────────────────────────── */
 .btn-primary {
   display: inline-flex;
   align-items: center;
@@ -149,67 +182,72 @@ h1, h2, .sr-serif {
   gap: 8px;
   min-height: 48px;
   padding: 12px 24px;
-  background: var(--accent-solid);
-  color: #ffffff;
+  background: var(--primary);
+  color: var(--primary-fg);
   border: none;
-  border-radius: 12px;
+  border-radius: 8px;
+  font-family: inherit;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
   width: 100%;
+  letter-spacing: 0;
 }
-.btn-primary:hover:not(:disabled) { background: #1d4f8a; }
-.btn-primary:disabled { opacity: 0.40; cursor: not-allowed; }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* ── Ghost / outline button ────────────────────────────────────────────────── */
+/* ── Secondary / ghost button ───────────────────────────────────────────────── */
 .btn-ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 44px;
+  min-height: 36px;
   padding: 6px 14px;
   background: transparent;
-  color: var(--ink-2);
+  color: var(--secondary);
   border: 1px solid var(--border-strong);
-  border-radius: 9999px;
+  border-radius: 6px;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
 }
-.btn-ghost:hover:not(:disabled) { background: var(--surface-raised); border-color: var(--muted); }
-.btn-ghost:disabled { opacity: 0.40; cursor: not-allowed; }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-subtle); border-color: var(--primary); color: var(--ink); }
+.btn-ghost:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* ── Pill: connect wallet ──────────────────────────────────────────────────── */
+/* ── Wallet button (compact pill for header/rail) ───────────────────────────── */
 .btn-wallet {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 40px;
-  padding: 8px 18px;
-  background: var(--surface-raised);
+  min-height: 36px;
+  padding: 6px 16px;
+  background: var(--surface);
   color: var(--ink);
   border: 1px solid var(--border-strong);
   border-radius: 9999px;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
   white-space: nowrap;
 }
-.btn-wallet:hover:not(:disabled) { background: var(--accent); border-color: var(--info-border); }
-.btn-wallet:disabled { opacity: 0.40; cursor: not-allowed; }
+.btn-wallet:hover:not(:disabled) { background: var(--surface-subtle); border-color: var(--primary); }
+.btn-wallet:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* ── Status badges ─────────────────────────────────────────────────────────── */
+/* ── Status badges ──────────────────────────────────────────────────────────── */
 .badge-paid {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   background: var(--success-bg);
-  color: var(--success);
+  color: var(--success-ink);
   border: 1px solid var(--success-border);
   border-radius: 9999px;
   font-size: 12px;
@@ -219,79 +257,74 @@ h1, h2, .sr-serif {
 .badge-unpaid {
   display: inline-flex;
   align-items: center;
-  background: rgba(107, 122, 145, 0.12);
-  color: var(--subtle);
+  background: var(--surface-subtle);
+  color: var(--subdued);
   border: 1px solid var(--border);
   border-radius: 9999px;
   font-size: 12px;
   font-weight: 500;
   padding: 2px 10px;
 }
-
-/* ── Network badge ─────────────────────────────────────────────────────────── */
+.badge-draft {
+  display: inline-flex;
+  align-items: center;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  border: 1px solid var(--warn-border);
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 .badge-network {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--info-bg);
-  color: var(--info-ink);
-  border: 1px solid var(--info-border);
+  background: var(--success-bg);
+  color: var(--success-ink);
+  border: 1px solid var(--success-border);
   border-radius: 9999px;
   font-size: 12px;
   font-weight: 600;
-  padding: 4px 12px;
+  padding: 3px 10px;
+  white-space: nowrap;
 }
 .badge-network::before {
   content: '';
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 9999px;
   background: var(--success);
   flex-shrink: 0;
 }
-@media (max-width: 639px) {
-  .badge-network { display: none; }
-}
 
-/* ── Payer number badge ────────────────────────────────────────────────────── */
+/* ── Payer index badge ──────────────────────────────────────────────────────── */
 .payer-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 600;
-  background: var(--info-bg);
-  color: var(--info-ink);
-  flex-shrink: 0;
-}
-
-/* ── How-it-works step circle ──────────────────────────────────────────────── */
-.step-circle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 9999px;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
-  background: var(--accent);
-  color: var(--accent-hover);
+  background: var(--surface-subtle);
+  color: var(--subdued);
+  border: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-/* ── Alert banners ─────────────────────────────────────────────────────────── */
+/* ── Alert banners ──────────────────────────────────────────────────────────── */
 .alert-warn {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   background: var(--warn-bg);
   border: 1px solid var(--warn-border);
-  border-radius: 10px;
-  padding: 10px 14px;
+  border-radius: 8px;
+  padding: 12px 14px;
   font-size: 14px;
   color: var(--warn-ink);
 }
@@ -301,7 +334,7 @@ h1, h2, .sr-serif {
   gap: 8px;
   background: var(--danger-bg);
   border: 1px solid var(--danger-border);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 14px;
   font-size: 13px;
   color: var(--danger);
@@ -312,10 +345,10 @@ h1, h2, .sr-serif {
   gap: 10px;
   background: var(--success-bg);
   border: 1px solid var(--success-border);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 12px 16px;
   font-size: 14px;
-  color: var(--success);
+  color: var(--success-ink);
   font-weight: 500;
 }
 .alert-info {
@@ -324,15 +357,15 @@ h1, h2, .sr-serif {
   gap: 10px;
   background: var(--info-bg);
   border: 1px solid var(--info-border);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 14px;
   font-size: 13px;
   color: var(--info-ink);
 }
 
-/* ── Progress bar ──────────────────────────────────────────────────────────── */
+/* ── Progress bar ───────────────────────────────────────────────────────────── */
 .progress-bar {
-  height: 8px;
+  height: 6px;
   border-radius: 9999px;
   background: var(--progress-track);
   overflow: hidden;
@@ -347,12 +380,12 @@ h1, h2, .sr-serif {
   .progress-bar__fill { transition: none; }
 }
 
-/* ── Spinner ───────────────────────────────────────────────────────────────── */
+/* ── Spinner ────────────────────────────────────────────────────────────────── */
 .spinner {
   width: 16px;
   height: 16px;
   border: 2px solid var(--border-strong);
-  border-top-color: var(--success);
+  border-top-color: var(--primary);
   border-radius: 9999px;
   animation: spin 0.75s linear infinite;
   flex-shrink: 0;
@@ -362,7 +395,7 @@ h1, h2, .sr-serif {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Collapsible ───────────────────────────────────────────────────────────── */
+/* ── Collapsible ────────────────────────────────────────────────────────────── */
 .collapsible-trigger {
   display: flex;
   align-items: center;
@@ -371,14 +404,15 @@ h1, h2, .sr-serif {
   background: none;
   border: none;
   padding: 12px 0;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 500;
-  color: var(--muted);
+  color: var(--subdued);
   cursor: pointer;
   text-align: left;
   border-top: 1px solid var(--border);
 }
-.collapsible-trigger:hover { color: var(--ink-2); }
+.collapsible-trigger:hover { color: var(--ink); }
 .collapsible-chevron {
   display: inline-block;
   transition: transform 0.2s;
@@ -388,34 +422,154 @@ h1, h2, .sr-serif {
   .collapsible-chevron { transition: none; }
 }
 
-/* ── Nav underline ─────────────────────────────────────────────────────────── */
-.nav-link {
-  position: relative;
-  padding: 4px 2px;
+/* ── Navigation rail (desktop sidebar) ─────────────────────────────────────── */
+.rail-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-family: inherit;
   font-size: 14px;
   font-weight: 500;
-  color: var(--muted);
+  color: var(--rail-ink);
   background: none;
   border: none;
   cursor: pointer;
-  transition: color 0.12s;
+  width: 100%;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+  min-height: 44px;
 }
-.nav-link:hover { color: var(--ink); }
-.nav-link--active { color: var(--ink); }
-.nav-link--active::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--success);
-  border-radius: 9999px;
+.rail-nav-link:hover { background: var(--rail-hover); color: var(--rail-ink-active); }
+.rail-nav-link--active { background: var(--rail-active-bg); color: var(--rail-ink-active); font-weight: 600; }
+
+/* ── Mobile nav tabs ────────────────────────────────────────────────────────── */
+.mobile-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 44px;
+  transition: background 0.12s, color 0.12s;
+}
+.mobile-nav-link:hover { background: var(--surface-subtle); color: var(--ink); }
+.mobile-nav-link--active {
+  color: var(--primary);
+  font-weight: 600;
+  background: var(--success-bg);
+}
+/* Very narrow screens (≤419px): hide nav icons so all 3 labels fit in one row */
+@media (max-width: 419px) {
+  .mobile-nav-link {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 4px;
+    gap: 0;
+  }
+  .mobile-nav-link > svg { display: none; }
 }
 
-/* ── Wallet checks section ─────────────────────────────────────────────────── */
-.wallet-checks-grid {
+/* ── Receipt preview (right panel on create) ────────────────────────────────── */
+.receipt-preview {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  /* Subtle receipt top edge */
+  border-top: 3px solid var(--primary);
+}
+
+/* ── Receipt payer row ──────────────────────────────────────────────────────── */
+.payer-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
+  grid-template-columns: 1.5rem 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0;
+}
+.payer-row + .payer-row {
+  border-top: 1px solid var(--border);
+}
+
+/* ── Responsive two-column layouts ─────────────────────────────────────────── */
+/* Default: single column; two-column only at ≥1024px (content breakpoint).     */
+/* Rail switches at 768px; content stays single-column until 1024px.            */
+
+/* Create page: 60/40 editor / receipt-preview split */
+.layout-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 32px;
+}
+.layout-create > * { min-width: 0; }
+@media (min-width: 1024px) {
+  .layout-create {
+    grid-template-columns: minmax(0, 1fr) clamp(260px, 38%, 340px);
+  }
+}
+
+/* Bill details: receipt document / action panel split */
+.layout-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 32px;
+}
+.layout-details > * { min-width: 0; }
+@media (min-width: 1024px) {
+  .layout-details {
+    grid-template-columns: minmax(0, 1fr) clamp(240px, 33%, 300px);
+  }
+}
+
+/* ── Bill totals summary band ───────────────────────────────────────────────── */
+/* Three-cell grid separated by 1px gaps (gap-px with border background).       */
+/* Values use overflow-wrap:anywhere so long numbers wrap at any character, but  */
+/* prefer word boundaries — "USDC" stays on its own line rather than splitting.  */
+.bill-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
+}
+.bill-total-cell {
+  background: var(--surface);
+  padding: 16px 20px;
+  min-width: 0;
+}
+.bill-total-value {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+@media (max-width: 639px) {
+  .bill-total-cell { padding: 12px 8px; }
+  .bill-total-value { font-size: 13px; }
+}
+
+/* ── Create bill: receipt preview ───────────────────────────────────────────── */
+/* Static on mobile (stacks below editor); sticky only on wide screens.         */
+.create-preview {
+  min-width: 0;
+  position: static;
+}
+@media (min-width: 1024px) {
+  .create-preview {
+    position: sticky;
+    top: 32px;
+  }
 }
