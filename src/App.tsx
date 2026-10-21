@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { FileText, ReceiptText, ShieldCheck } from 'lucide-react'
 import { WalletButton } from './wallet-ui'
 import CreateBill from './components/CreateBill'
 import BillDetails from './components/BillDetails'
@@ -55,10 +56,15 @@ function setUrlChecks() {
   window.history.pushState({}, '', url.toString())
 }
 
+const NAV_ITEMS = [
+  { kind: 'create' as const, label: 'Create bill',    Icon: FileText },
+  { kind: 'demo'   as const, label: 'Demo receipt',   Icon: ReceiptText },
+  { kind: 'checks' as const, label: 'Wallet checks',  Icon: ShieldCheck },
+]
+
 export default function App() {
   const [view, setView] = useState<View>(getViewFromUrl)
 
-  // Handle browser back/forward
   useEffect(() => {
     const handler = () => setView(getViewFromUrl())
     window.addEventListener('popstate', handler)
@@ -71,125 +77,161 @@ export default function App() {
   }
 
   const goCreate = () => { clearUrl(); setView({ kind: 'create' }) }
-  const goDemo = () => { setUrlBillId(DEMO_BILL_ID); setView({ kind: 'details', billId: DEMO_BILL_ID }) }
+  const goDemo   = () => { setUrlBillId(DEMO_BILL_ID); setView({ kind: 'details', billId: DEMO_BILL_ID }) }
   const goChecks = () => { setUrlChecks(); setView({ kind: 'checks' }) }
-  const goBack = () => { clearUrl(); setView({ kind: 'create' }) }
+  const goBack   = () => { clearUrl(); setView({ kind: 'create' }) }
+
+  function isActive(kind: 'create' | 'demo' | 'checks') {
+    if (kind === 'create') return view.kind === 'create'
+    if (kind === 'demo')   return view.kind === 'details' && (view as { kind: 'details'; billId: bigint }).billId === DEMO_BILL_ID
+    return view.kind === 'checks'
+  }
+
+  const navAction = { create: goCreate, demo: goDemo, checks: goChecks }
 
   return (
-    <div className="min-h-dvh flex flex-col" style={{ background: 'var(--bg)' }}>
+    /* Root: full-height flex row on desktop */
+    <div className="min-h-dvh flex flex-col" style={{ background: 'var(--canvas)' }}>
 
       {/* ── Testnet notice strip ───────────────────────────────────────── */}
       <div
-        className="flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium"
-        style={{ background: 'var(--info-bg)', borderBottom: '1px solid var(--info-border)', color: 'var(--info-ink)' }}
+        className="flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium z-50"
+        style={{ background: 'var(--warn-bg)', borderBottom: '1px solid var(--warn-border)', color: 'var(--warn-ink)' }}
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <circle cx="8" cy="8" r="7.5" stroke="currentColor"/>
           <path d="M8 5v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
           <circle cx="8" cy="11.5" r="0.75" fill="currentColor"/>
         </svg>
-        Arc Testnet · Test USDC only. No real funds.
+        Arc Testnet · Test USDC only · No real funds
       </div>
 
-      {/* ── Header ────────────────────────────────────────────────────── */}
-      <header
-        className="sticky top-0 z-40"
-        style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
-      >
-        <div className="mx-auto max-w-[1120px] px-4 sm:px-6 h-14 flex items-center gap-6">
+      {/* ── Outer shell: rail + content ────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0">
+
+        {/* ── Left navigation rail (desktop only ≥768px) ────────────── */}
+        <aside
+          className="hidden md:flex flex-col shrink-0"
+          style={{
+            width: '208px',
+            background: 'var(--rail-bg)',
+            borderRight: '1px solid rgba(255,255,255,0.06)',
+            position: 'sticky',
+            top: 0,
+            height: '100vh',
+            overflowY: 'auto',
+          }}
+          aria-label="Application navigation"
+        >
           {/* Brand */}
           <button
             onClick={goCreate}
-            className="flex shrink-0 items-center gap-2.5 font-bold text-[15px]"
-            style={{ color: 'var(--ink)', fontFamily: "'Iowan Old Style', Georgia, serif" }}
+            className="flex items-center gap-2.5 px-5 pt-6 pb-5"
+            style={{ color: '#FFFFFF', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
             aria-label="SplitReceipt home"
           >
-            <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-              <rect width="28" height="28" rx="7" fill="var(--accent-solid)"/>
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+              <rect width="28" height="28" rx="7" fill="#176B57"/>
               <path d="M8 8h12M8 12h12M8 16h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
               <path d="M18 16l3 4" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
-            SplitReceipt
+            <span style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.01em' }}>SplitReceipt</span>
           </button>
 
-          {/* Nav — desktop */}
-          <nav className="hidden sm:flex items-center gap-5" aria-label="Main navigation">
-            <button
-              className={`nav-link${view.kind === 'create' ? ' nav-link--active' : ''}`}
-              onClick={goCreate}
-            >
-              Create bill
-            </button>
-            <button
-              className={`nav-link${view.kind === 'details' && view.billId === DEMO_BILL_ID ? ' nav-link--active' : ''}`}
-              onClick={goDemo}
-            >
-              Demo receipt
-            </button>
-            <button
-              className={`nav-link${view.kind === 'checks' ? ' nav-link--active' : ''}`}
-              onClick={goChecks}
-            >
-              Wallet checks
-            </button>
+          {/* Nav items */}
+          <nav className="flex-1 px-3 space-y-1" aria-label="Main navigation">
+            {NAV_ITEMS.map(({ kind, label, Icon }) => (
+              <button
+                key={kind}
+                type="button"
+                className={`rail-nav-link${isActive(kind) ? ' rail-nav-link--active' : ''}`}
+                onClick={navAction[kind]}
+                aria-current={isActive(kind) ? 'page' : undefined}
+              >
+                <Icon size={16} aria-hidden="true" />
+                {label}
+              </button>
+            ))}
           </nav>
 
-          {/* Right: network badge + wallet */}
-          <div className="ml-auto flex shrink-0 items-center gap-3 whitespace-nowrap">
-            <span className="badge-network">Arc Testnet</span>
+          {/* Bottom: wallet */}
+          <div className="px-3 pb-6 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="flex items-center gap-2 mb-2">
+              <span
+                className="badge-network"
+                style={{ background: 'rgba(20,92,68,0.4)', border: '1px solid rgba(168,213,187,0.3)', color: '#A8D5BB', fontSize: '11px' }}
+              >
+                Arc Testnet
+              </span>
+            </div>
             <WalletButton />
           </div>
+        </aside>
+
+        {/* ── Right: mobile header + content ─────────────────────────── */}
+        <div className="flex flex-col flex-1 min-w-0">
+
+          {/* Mobile header (hidden ≥768px) */}
+          <header
+            className="md:hidden sticky top-0 z-40"
+            style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center gap-3 px-4 h-14">
+              {/* Brand */}
+              <button
+                onClick={goCreate}
+                className="flex shrink-0 items-center gap-2"
+                style={{ color: 'var(--ink)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '15px' }}
+                aria-label="SplitReceipt home"
+              >
+                <svg width="24" height="24" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+                  <rect width="28" height="28" rx="7" fill="#176B57"/>
+                  <path d="M8 8h12M8 12h12M8 16h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+                  <path d="M18 16l3 4" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+                SplitReceipt
+              </button>
+              {/* Wallet pill */}
+              <div className="ml-auto shrink-0">
+                <WalletButton />
+              </div>
+            </div>
+
+            {/* Mobile nav tabs */}
+            <nav
+              className="flex items-center gap-1 px-3 pb-2 overflow-x-auto"
+              style={{ scrollbarWidth: 'none' }}
+              aria-label="Main navigation"
+            >
+              {NAV_ITEMS.map(({ kind, label, Icon }) => (
+                <button
+                  key={kind}
+                  type="button"
+                  className={`mobile-nav-link${isActive(kind) ? ' mobile-nav-link--active' : ''}`}
+                  onClick={navAction[kind]}
+                  aria-current={isActive(kind) ? 'page' : undefined}
+                >
+                  <Icon size={14} aria-hidden="true" />
+                  {label}
+                </button>
+              ))}
+            </nav>
+          </header>
+
+          {/* Content */}
+          <main className="flex-1 px-4 md:px-8 py-8 md:py-10 max-w-[1120px] w-full mx-auto">
+            {view.kind === 'create' && (
+              <CreateBill onBillCreated={handleBillCreated} onViewDemo={goDemo} />
+            )}
+            {view.kind === 'details' && (
+              <BillDetails billId={view.billId} onBack={goBack} />
+            )}
+            {view.kind === 'checks' && (
+              <WalletChecks onBack={goCreate} />
+            )}
+          </main>
         </div>
-      </header>
-
-      {/* ── Mobile nav row (visible only below sm) ────────────────────── */}
-      <nav
-        className="sm:hidden flex items-center gap-1 px-4 py-2 overflow-x-auto"
-        style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
-        aria-label="Main navigation"
-      >
-        <button
-          className={`nav-link shrink-0${view.kind === 'create' ? ' nav-link--active' : ''}`}
-          onClick={goCreate}
-        >
-          Create bill
-        </button>
-        <button
-          className={`nav-link shrink-0${view.kind === 'details' && view.billId === DEMO_BILL_ID ? ' nav-link--active' : ''}`}
-          onClick={goDemo}
-        >
-          Demo receipt
-        </button>
-        <button
-          className={`nav-link shrink-0${view.kind === 'checks' ? ' nav-link--active' : ''}`}
-          onClick={goChecks}
-        >
-          Wallet checks
-        </button>
-      </nav>
-
-      {/* ── Main ──────────────────────────────────────────────────────── */}
-      <main className="flex-1 mx-auto w-full max-w-[1120px] px-4 sm:px-6 py-8">
-        {view.kind === 'create' && (
-          <>
-            <CreateBill onBillCreated={handleBillCreated} onViewDemo={goDemo} />
-          </>
-        )}
-        {view.kind === 'details' && (
-          <BillDetails billId={view.billId} onBack={goBack} />
-        )}
-        {view.kind === 'checks' && (
-          <WalletChecks onBack={goCreate} />
-        )}
-      </main>
-
-      {/* ── Footer ────────────────────────────────────────────────────── */}
-      <footer
-        className="border-t text-center text-xs py-4 px-4"
-        style={{ borderColor: 'var(--border)', color: 'var(--subtle)' }}
-      >
-        Arc Testnet · Test USDC only · No real funds
-      </footer>
+      </div>
     </div>
   )
 }
