@@ -1,9 +1,10 @@
 import { isAddress, keccak256, type Address, type Hex } from 'viem'
+import { REVIEWED_MAINNET_DEPLOYMENT, matchesReviewedMainnetDeployment } from './mainnetDeployment'
 
 export const ARC_TESTNET_CHAIN_ID = 5042002 as const
 export const ARC_MAINNET_CHAIN_ID = 5042 as const
-/** Deliberate release lock: no environment variable or URL can enable mainnet writes. */
-export const MAINNET_WRITES_ENABLED = false as const
+/** Only a reviewed source-pinned deployment can enable mainnet writes. */
+export const MAINNET_WRITES_ENABLED = REVIEWED_MAINNET_DEPLOYMENT !== null
 export const TESTNET_CONTRACT: Address = '0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26'
 export const TESTNET_DEPLOY_BLOCK = 67660831n
 /** Historical runtime from deployments/arc-testnet.json, independently checked by tools/testnet/check.mjs. */
@@ -33,7 +34,7 @@ export interface NetworkDeploymentContext {
   readonly expectedRuntimeHash: Hex | null
   readonly contextKey: string
   readonly configError: string | null
-  readonly mainnetWritesEnabled: false
+  readonly mainnetWritesEnabled: boolean
 }
 
 function address(raw: string): Address | null {
@@ -79,7 +80,8 @@ export function resolveNetworkContext(href: string, env: PublicNetworkEnv = {}):
   if (specificAddress !== undefined && legacyAddress !== undefined && specificAddress.toLowerCase() !== legacyAddress.toLowerCase()) {
     errors.push('Conflicting testnet contract configuration.')
   }
-  const rawAddress = specificAddress ?? legacyAddress ?? (selected.key === 'testnet' ? TESTNET_CONTRACT : '')
+  const reviewed = selected.key === 'mainnet' ? REVIEWED_MAINNET_DEPLOYMENT : null
+  const rawAddress = specificAddress ?? legacyAddress ?? (selected.key === 'testnet' ? TESTNET_CONTRACT : reviewed?.contract ?? '')
   const contract = rawAddress ? address(rawAddress) : null
   if (rawAddress && !contract) errors.push('Configured contract address is invalid or zero.')
   if (selected.key === 'mainnet' && contract?.toLowerCase() === TESTNET_CONTRACT.toLowerCase()) {
@@ -88,13 +90,13 @@ export function resolveNetworkContext(href: string, env: PublicNetworkEnv = {}):
   const historical = selected.key === 'testnet' && contract === TESTNET_CONTRACT
   const rawBlock = envString(env, `${prefix}_DEPLOY_BLOCK`) ??
     (selected.key === 'testnet' ? envString(env, 'VITE_SPLIT_RECEIPT_DEPLOY_BLOCK') : undefined) ??
-    (historical ? String(TESTNET_DEPLOY_BLOCK) : '')
+    (historical ? String(TESTNET_DEPLOY_BLOCK) : reviewed ? String(reviewed.deploymentBlock) : '')
   let deploymentBlock: bigint | null = null
   if (rawBlock) {
     if (/^\d+$/.test(rawBlock)) deploymentBlock = BigInt(rawBlock)
     else errors.push('Deployment block must be a non-negative integer.')
   }
-  const rawHash = envString(env, `${prefix}_RUNTIME_HASH`) ?? (historical ? TESTNET_RUNTIME_HASH : '')
+  const rawHash = envString(env, `${prefix}_RUNTIME_HASH`) ?? (historical ? TESTNET_RUNTIME_HASH : reviewed?.runtimeHash ?? '')
   const expectedRuntimeHash = rawHash ? hash(rawHash) : null
   if (rawHash && !expectedRuntimeHash) errors.push('Expected runtime hash must be a 32-byte hex value.')
   const urlContract = selected.params.get('contract')
@@ -102,7 +104,9 @@ export function resolveNetworkContext(href: string, env: PublicNetworkEnv = {}):
     errors.push('The bill link contract does not match this network deployment.')
   }
   return Object.freeze({ ...facts, nativeDecimals: 18, contract, deploymentBlock, deployBlock: deploymentBlock,
-    expectedRuntimeHash, mainnetWritesEnabled: MAINNET_WRITES_ENABLED,
+    expectedRuntimeHash, mainnetWritesEnabled: selected.key === 'mainnet' && matchesReviewedMainnetDeployment({
+      chainId: facts.chainId, contract, deploymentBlock, expectedRuntimeHash,
+    }),
     contextKey: `${facts.chainId}:${contract ?? 'unconfigured'}:${expectedRuntimeHash ?? 'unverified'}:${deploymentBlock ?? 'unknown'}`,
     configError: errors.length ? errors.join(' ') : null })
 }
@@ -157,8 +161,14 @@ export function getWriteBlockReason(
 ): string | null {
   if (context.configError) return context.configError
   if (!context.contract || context.deploymentBlock === null || !context.expectedRuntimeHash) return `${context.name} deployment is not configured.`
-  // This release cannot be armed for mainnet by env, URL, a cached verification or a connected wallet.
-  if (!context.isTestnet || context.chainId !== ARC_TESTNET_CHAIN_ID) return 'Mainnet transactions are disabled in this preparation release.'
+  if (context.key === 'mainnet') {
+    // Check the actual source-pinned record again; a caller-supplied boolean is insufficient.
+    if (context.isTestnet || !context.mainnetWritesEnabled || !matchesReviewedMainnetDeployment(context)) {
+      return 'Mainnet transactions are disabled until this deployment is reviewed and enabled in the app release.'
+    }
+  } else if (!context.isTestnet || context.chainId !== ARC_TESTNET_CHAIN_ID) {
+    return 'The selected network is not supported for transactions.'
+  }
   if (!verification || verification.contextKey !== context.contextKey || verification.status !== 'ready') {
     return verification?.contextKey === context.contextKey ? verification.reason ?? 'Contract verification is not ready.' : 'Verify the current network deployment before sending a transaction.'
   }

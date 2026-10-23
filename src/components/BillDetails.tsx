@@ -23,6 +23,7 @@ import {
 } from '../splitReceiptContract'
 import { activeNetwork } from '../activeNetwork'
 import { getWriteBlockReason } from '../networkContext'
+import { transactionFeeFields } from '../mainnetDeployment'
 import { useDeploymentReadiness } from '../useDeploymentReadiness'
 import { useActionScope } from '../useActionScope'
 import { checkScopedWrite } from '../actionScope'
@@ -597,7 +598,7 @@ export default function BillDetails({ billId, onBack }: BillDetailsProps) {
       address: activeNetwork.contract!, abi: SPLIT_RECEIPT_ABI,
       functionName: 'payShare', args: [billId],
       connector: walletSnapshot.connector, account: walletSnapshot.account,
-      value: share, chainId: activeNetwork.chainId,
+      value: share, chainId: activeNetwork.chainId, ...transactionFeeFields(activeNetwork),
     }, { onSuccess: hash => { pending.submittedHash = hash }, onError: () => { writeLock.current = false } })
   }, [billData, billId, writeContract, reset, address, chainId, connector?.uid, isConnected, isWrongChain, isPending, isConfirming, checkingWrite, readiness, actionScope, walletSelection])
 

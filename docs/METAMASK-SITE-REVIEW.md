@@ -1,5 +1,7 @@
 # MetaMask public-site warning review
 
+> **23 October 2026 update:** Arc Mainnet contract deployment is now verified. See [current mainnet status and evidence](MAINNET-LIVE.md) for the exact source-pinned deployment, live application/receipt status, fees and remaining submission work. Deployment and wallet funding alone are not a through-application payment. The dated Testnet/preparation material below is retained as historical evidence; its statements about an undeployed or disabled mainnet describe that earlier checkpoint. No competition submission or eligibility acceptance is claimed.
+
 ## Summary
 
 This review covers two hostnames used during the project:
@@ -33,7 +35,7 @@ The operator did not submit a false-positive report, change wallet security sett
 
 ## New hostname: splitreceipt.axiqo.xyz
 
-Reviewed on 18 October 2026.
+Historical scan reviewed on 18 October 2026; later public-wallet observations are recorded separately below.
 
 The official scan API `https://dapp-scanning.api.cx.metamask.io/v2/scan?url=splitreceipt.axiqo.xyz` returned `recommendedAction: NONE` in one scan on 18 October 2026.
 
@@ -45,7 +47,15 @@ The official scan API `https://dapp-scanning.api.cx.metamask.io/v2/scan?url=spli
 
 Anonymous bill reading on the dedicated domain (bill 3, settled 2/2) was observed without a wallet connection on 18 October 2026.
 
-A wallet connection on the new hostname was additionally exercised when a Bill 4 create transaction was submitted. The direct user confirmed that the wallet approval dialog was shown without any malicious warning. This is user-reported; native wallet pixels were not captured. This observation covers only the `createBill` approval on the new domain; a `payShare` approval on the new domain has not been retested. A single user-reported absence of a warning does not certify the hostname or application as safe.
+At the earlier Bill 4 checkpoint, the owner reported a create approval without a malicious-site warning. Payment confirmation on the new domain had not yet been retested **at that checkpoint**.
+
+### Current public-wallet retest — 22 October 2026
+
+The published application source `4dae47f01bb78126e5c70621d87af0c9899cb9c6` completed [Bill 6](https://splitreceipt.axiqo.xyz/splitreceipt/?network=testnet&chainId=5042002&contract=0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26&bill=6) creation and two 0.001 test-USDC payments. The public UI reached 2/2 paid and 2/2 verified receipts, confirmed separately by canonical chain proof. App Disconnect plus reload in the same profile retained both receipts and showed Connect wallet.
+
+The owner explicitly reported personally confirming creation and payment 2 without a security warning. Native wallet pixels were not captured. The first payment's native signature actor/action and warning state were not observed. This is a bounded report for those steps, not proof that every wallet or future visit is warning-free. No fresh 22 October classification scan or cleared-support appeal is claimed.
+
+The app's wallet repair lists named EIP-6963 providers, avoids the shared targetless legacy injection slot, disables automatic reconnect on reload and gates writes on explicit connector/account/chain acknowledgement. It addresses app selection/session ambiguity; it does not repair extension-internal scripts. An earlier `Cannot redefine property: ethereum` error originated from an injected extension script. The current captured console sample had no error-level messages but retained MetaMask listener/orphan-stream warnings. No complete extension repair or security certification is claimed.
 
 See [VALIDATION.md](VALIDATION.md) for the full current check record.
 

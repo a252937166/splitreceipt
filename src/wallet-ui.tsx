@@ -174,7 +174,7 @@ export function WalletButton() {
           </div>
 
           <p id={descriptionId} className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
-            {activeNetwork.isTestnet ? 'Arc Testnet · Test USDC only' : 'Arc Mainnet · Real USDC · Transactions disabled'}
+            {activeNetwork.isTestnet ? 'Arc Testnet · Test USDC only' : activeNetwork.mainnetWritesEnabled ? 'Arc Mainnet · Real USDC · Wallet confirmation required' : 'Arc Mainnet · Real USDC · Transactions disabled'}
           </p>
           {!isConnected && <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>Select your wallet explicitly after reloading.</p>}
 

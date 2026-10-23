@@ -1,6 +1,34 @@
 # Validation record
 
+> **23 October 2026 update:** Arc Mainnet contract deployment is now verified. See [current mainnet status and evidence](MAINNET-LIVE.md) for the exact source-pinned deployment, live application/receipt status, fees and remaining submission work. Deployment and wallet funding alone are not a through-application payment. The dated Testnet/preparation material below is retained as historical evidence; its statements about an undeployed or disabled mainnet describe that earlier checkpoint. No competition submission or eligibility acceptance is claimed.
+
 This record distinguishes deterministic tests, mined chain evidence, local browser observations and public-site verification. The proof files below accompany this record; deployment results for individual source revisions are available in the [Actions history](https://github.com/a252937166/splitreceipt/actions/workflows/pages.yml).
+
+## Current public release and wallet-flow verification (21–22 October 2026)
+
+Application source `4dae47f01bb78126e5c70621d87af0c9899cb9c6`, dedicated-host release `20261021T192007Z-4dae47f`. Independent server-release, HTTPS/TLS, redirects and public asset readback matched four static files (652,054 bytes). [Exact application-commit CI](https://github.com/a252937166/splitreceipt/actions/runs/39660377061) passed install, dependency isolation, typecheck, tests and build. A future documentation-only commit is distinct from that deployed application source.
+
+| Check | Observed result | Boundary |
+| --- | --- | --- |
+| Studio source adoption | Latest 11 wallet source/test files matched actual Studio SHA readback and identical sealed inputs | Official manual-terminal application of Codex-prepared inputs; not a new full ZIP or all-Studio-AI claim |
+| TypeScript / build / isolation | 76 tests, typecheck, build and isolation passed in Studio and independently locally on 21 October | Current recorded source suite, not a new 22 October run |
+| Solidity preparation | 38 tests and 256 fuzz runs passed in Studio and locally on 21 October | Local EVM; chain-5042 tests are not mainnet/fork execution |
+| Wallet policy | Named discovered providers, no targetless legacy slot or automatic reconnect; explicit session and stale-action guards covered by actual wagmi/core tests | Does not repair external extension code |
+| Public Bill 6 | Created, payer 1 paid, then payer 2 paid: 2/2 paid and 2/2 receipts verified | 22 October public app; two owner-controlled demo accounts |
+| Canonical chain proof | Runtime, successful transaction/receipt status, sender/target/call data/value, block hashes and matching bill/payment events checked | Independent read-only chain proof, not browser-signature footage |
+| Disconnect / reload | Same profile remained disconnected and displayed both verified receipts | Storage/cache not cleared; not a new anonymous profile |
+| Historical regressions | Bills 3 and 5 displayed 2/2 verified receipts on the new release | Not new Bill 6 transactions |
+| Security-warning observations | Owner reported no warning for creation and payment 2 | No native wallet capture; payment 1 signature/actor and warning not observed |
+| Console sample | No error-level entries; MetaMask listener/orphan-stream warnings remained | Not complete extension repair or blanket domain safety proof |
+| Process video | 63 seconds, 21 milestone screenshots, silent, 1080p/30fps; source/decoded/full-decode/privacy/timing QA passed | Noncontinuous, waits compressed, no Studio editing/native signing; private and not uploaded |
+
+[Sanitized Bill 6 evidence](../tests/evidence/public-wallet-flow-2026-10-22.json) records all three exact transaction hashes, amounts, blocks, fees and observation limits. Total principal was 0.002 test USDC, gas 0.007650575 test USDC. Test tokens have no monetary value. The app's **Use this wallet** acknowledgement is not a wallet signature. The creator hash is derived from chain/scenario proof, not a fully visible hash in the saved creation-page screenshot.
+
+The mainnet context remains unconfigured with writes locked false. No mainnet deployment/payment, paid upgrade, public final-video URL or completed competition submission is established. [Readiness](submission/READINESS.md) tracks rule/provenance/form gaps.
+
+## Historical records below
+
+Each dated subsection describes its own revision and observation window. Older source hashes, counts, auto-restored connections and “not yet retested” boundaries do not replace the current record above.
 
 ## Standalone checks (17 October 2026)
 
@@ -33,13 +61,13 @@ Studio repairs were applied to the dark UI: signature/permit wording corrected i
 
 The INITIAL/HISTORICAL dedicated release checkpoint (`20261018T080938Z-dd5013b`) used the white/blue UI.
 
-## Light/forest UI redesign and presentation corrections (21 October 2026)
+## Historical light/forest UI release and presentation corrections (21 October 2026, 003f005)
 
-The current app release reflects the light/forest redesign authored in Arc Studio. Six UI/design files were adopted from the Studio export as exact bytes. A second Studio session applied five targeted presentation fixes: narrow-viewport mobile nav (≤419px icon hide), bill totals CSS class replacing `break-all` with `overflow-wrap: anywhere`, Create bill receipt preview visible on all screen widths, CSS token aliases (`--muted`, `--surface-raised`) required by the frozen wallet dialog, and a correct `section[role="dialog"] h2` font override.
+The earlier `003f005` app release reflected the light/forest redesign authored in Arc Studio. Six UI/design files were adopted from the Studio export as exact bytes. A second Studio session applied five targeted presentation fixes: narrow-viewport mobile nav (≤419px icon hide), bill totals CSS class replacing `break-all` with `overflow-wrap: anywhere`, Create bill receipt preview visible on all screen widths, CSS token aliases (`--muted`, `--surface-raised`) required by the frozen wallet dialog, and a correct `section[role="dialog"] h2` font override.
 
 | Check | Result | Source |
 |---|---|---|
-| Typecheck | Clean | Studio + local, current source |
+| Typecheck | Clean | Studio + local, that historical source |
 | Frontend tests | 36/36 pass | Studio + CI run `39561037667` |
 | Production build | Success | Studio + local |
 | Dependency isolation | 215 registry packages, zero external links | CI run `39561037667` |
@@ -47,15 +75,15 @@ The current app release reflects the light/forest redesign authored in Arc Studi
 | Live browser readback | Bill 3 Settled 2/2, 2/2 freshly verified | 21 October 2026 operator browser observation (existing authorized account auto-restored; no new connection or signature initiated) |
 | App release | `003f005b4030f664dfb95f9ccc79205f14e92b27`, label `20261021T071846Z-003f005` | Independent |
 | ZIP SHA-256 | `b92cfe708d31acb756301b85eab742984ff50f0b5ab3830ec936ae4668181e14` | Six UI/design files |
-| Four dist assets | 633,573 bytes | Current build |
+| Four dist assets | 633,573 bytes | That historical build |
 | `src/onchain-facts.ts` SHA-256 | `b4c45994e26e377923c5f54e706709449435af051ce89f493027f111cdf2f070` | Drifted at this docs session start; restored by explicit write during this session; verified at session end |
 | `src/wallet-ui.tsx` SHA-256 | `4d0a1e0b8712c7e9a4ca422b4a87df38c938795a01c8156a77c18e616eed93fc` | Matched at session start and end; unchanged |
 
 The `src/onchain-facts.ts` helper restore described above was a source write inside Studio (restoring the canonical 1,080-byte file after different bytes were observed; the cause of the drift is unestablished). No functional product changes were authored or adopted in this documentation session.
 
-The 20-test receipt-discovery suite covers adversarial verification: `assembleCandidates` prior-hash ordering and cap, middle-source merged cap, old RAM bypass prevention, canonical block check, RPC error handling, stale contextKey guard, warm cache re-verification, `buildShareUrl` dedup/cap/exclusion. These tests run as part of the 36-test suite in CI; the 36-test count is the current CI record for commit `003f005`. The 35 Solidity tests and 256 fuzz runs were completed 17 October 2026; contract source is unchanged since.
+The 20-test receipt-discovery suite covers adversarial verification: `assembleCandidates` prior-hash ordering and cap, middle-source merged cap, old RAM bypass prevention, canonical block check, RPC error handling, stale contextKey guard, warm cache re-verification, `buildShareUrl` dedup/cap/exclusion. These tests run as part of the 36-test suite in CI; the 36-test count is the historical CI record for commit `003f005`. At that earlier UI checkpoint, the referenced Solidity record was 35 tests and 256 fuzz runs from 17 October. The later 21 October preparation separately ran 38 tests with 256 fuzz runs; contract source remained unchanged.
 
-Bill 4 create transaction (`0x0834d17d37afc7fa267bc84648e34ebdf973433b72597db5e64a75018b20d826`) succeeded on testnet under the new hostname. Direct user confirmed manual wallet approval with no malicious warning shown. This is user-reported for the createBill step only; native wallet pixels were not captured; payShare on the new domain has not been retested.
+Bill 4 create transaction (`0x0834d17d37afc7fa267bc84648e34ebdf973433b72597db5e64a75018b20d826`) succeeded on testnet under the new hostname. Direct user confirmed manual wallet approval with no malicious warning shown. This is user-reported for the createBill step only; native wallet pixels were not captured; payShare on the new domain had not yet been retested at that Bill 4 checkpoint; the complete later Bill 6 flow is recorded above.
 
 ## Dedicated hosting verification (18 October 2026)
 
@@ -67,7 +95,7 @@ Bill 4 create transaction (`0x0834d17d37afc7fa267bc84648e34ebdf973433b72597db5e6
 | Manifest SHA-256 | `21ff2a604925a5e6b09f8cd623dca6b3848147ab67340eaae0387c4853c35215` |
 | HTTPS/TLS/redirect readback | Passed 2026-10-18 08:22:43 UTC |
 | Root/slash/HTTP redirects | Preserve bill query string |
-| Hosting type | Dedicated static; isolated `/var/www/splitreceipt/releases/`; `current` symlink; no backend/port/dependency/secret uploaded |
+| Hosting type | Dedicated static; isolated release directory; `current` symlink; no backend/port/dependency/secret uploaded |
 
 The temporary `codex.axiqo.xyz/splitreceipt` route has been removed and must not be used as the primary demo.
 
@@ -112,11 +140,6 @@ A rejected network-switch prompt was not exercised. Real post-broadcast nonce ac
 
 ## Public delivery and remaining boundary
 
-- Primary demo: https://splitreceipt.axiqo.xyz/splitreceipt/ (dedicated static hosting, current release `003f005`)
-- Old GitHub Pages URL (`a252937166.github.io/splitreceipt`) is historical
-- Bill 3 read as Settled 2/2 with 2/2 freshly verified receipts on 21 October 2026 (direct browser observation; an existing authorized account auto-restored, with no new connection or signature initiated)
-- **Public wallet connection was observed after human handling on the old GitHub Pages hostname.** The first attempt on that host produced a MetaMask phishing warning and was cancelled. Cause remains unconfirmed. The new dedicated hostname returned `NONE` in one 18 October scan; this does not guarantee future wallet behavior or certify security. See [METAMASK-SITE-REVIEW.md](METAMASK-SITE-REVIEW.md).
-- Bill 4 create confirmed on new domain; payShare not retested on new domain.
-- Studio and browser recordings remain local, outside the source repository. No uploaded video URL is claimed.
-- Mainnet deployment, mainnet payments and competition submission have not been performed. No new transaction for redesign. No additional paid service or upgrade; testnet transactions consumed testnet gas as separately documented.
-- See [docs/submission/](submission/) for submission preparation materials.
+Primary demo: https://splitreceipt.axiqo.xyz/splitreceipt/; deployed application source `4dae47f01bb78126e5c70621d87af0c9899cb9c6`, release `20261021T192007Z-4dae47f`. The old GitHub Pages hostname and earlier `003f005` release are historical. The complete current public Bill 6 flow is recorded above; its first/second payments must not be replaced with Bill 3's older helper-paid history.
+
+Recordings remain private and no final public-video URL or contest submission is claimed. The [22 October rules check](https://dorahacks.io/hackathon/arc-microgrants-2/detail) requires Studio provenance and real mainnet operation; testnet success alone does not qualify. Mainnet writes remain disabled, mixed-history acceptance and Studio reviewer access are unresolved, and the actual form schema was not inspected after its Organizer Disclaimer was canceled. See [submission readiness](submission/READINESS.md) and [provenance](PROVENANCE.md).

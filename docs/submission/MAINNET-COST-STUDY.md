@@ -1,6 +1,8 @@
-# Mainnet cost study
+# Historical mainnet cost study — 21 October 2026
 
-**Analysis only. No mainnet deployment, no wallet connection, no transaction broadcast, no mainnet app configuration.**
+> **23 October 2026 update:** Arc Mainnet contract deployment is now verified. See [current mainnet status and evidence](../MAINNET-LIVE.md) for the exact source-pinned deployment, live application/receipt status, fees and remaining submission work. Deployment and wallet funding alone are not a through-application payment. The dated Testnet/preparation material below is retained as historical evidence; its statements about an undeployed or disabled mainnet describe that earlier checkpoint. No competition submission or eligibility acceptance is claimed.
+
+**Dated analysis only.** This study used a read-only mainnet fee snapshot and historical testnet gas. It did not connect a mainnet wallet, configure a live mainnet deployment or broadcast a mainnet transaction. Its prices and planning budget have not been refreshed on 22 October.
 
 This document estimates the USDC cost of deploying and running SplitReceipt on Arc mainnet, based on public documentation and historical testnet gas data. It is a planning reference, not a guarantee or a deployment instruction.
 
@@ -101,7 +103,7 @@ Principal transferred between owner-controlled accounts remains the owner's fund
 
 ## Provisional budget
 
-**0.05–0.10 USDC** is a provisional planning budget for the deploy-plus-demo cycle assuming current fee levels and that USDC is already available on Arc mainnet. This is not a deposit minimum or a guarantee.
+**0.05–0.10 USDC** is a provisional planning budget for the deploy-plus-demo cycle assuming the 21 October snapshot fee levels and that USDC is already available on Arc mainnet. This is not a deposit minimum or a guarantee.
 
 The following are excluded from this estimate and may require additional funds:
 
@@ -113,11 +115,12 @@ The following are excluded from this estimate and may require additional funds:
 
 ---
 
-## Not included
+## Study boundaries and later preparation
 
-- No wallet balance has been checked.
-- No mainnet wallet has been connected or funded.
-- No mainnet app configuration has been prepared.
-- No transaction has been broadcast.
-- A reviewed unsigned mainnet deployment transaction can be estimated before deploying, once mainnet work is independently authorized. This study uses historical testnet gas values as a proxy; a final estimate should use a specific reviewed mainnet transaction.
+- This study did not check a mainnet wallet balance, connect or fund a mainnet wallet, configure a live mainnet deployment, or broadcast a mainnet transaction.
+- Subsequent preparation added a separate, disabled mainnet app context and offline unsigned artifacts. The published application has no mainnet contract address and `MAINNET_WRITES_ENABLED = false`. These are not deployments or current fee estimates.
+- Bill 6 later completed two payments on the public Arc **Testnet** app. Its test-asset gas and principal do not update this historical mainnet model. See [the current evidence](../../tests/evidence/public-wallet-flow-2026-10-22.json).
+- A specific unsigned mainnet deployment draft must be independently reviewed and freshly estimated before any future deployment is authorized. This study uses historical testnet gas values as a proxy; a final estimate should use a specific reviewed mainnet transaction.
 - Exact gas prices are not guaranteed; obtain a fresh fee snapshot immediately before any mainnet transaction.
+
+For current submission gaps see [READINESS.md](READINESS.md); for offline artifact review gates see [MAINNET-PREPARATION.md](../MAINNET-PREPARATION.md). No additional mainnet fee research or mainnet action is part of this documentation refresh.
