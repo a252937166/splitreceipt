@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "status": "PASS_CANONICAL_MAINNET_TWO_OF_TWO_AND_WALLET_DISCONNECTED_RELOAD",
+  "observedDate": "2026-10-23",
+  "canonicalReadbackAtUtc": "2026-10-23T15:24:58.715Z",
+  "scope": "Curated public evidence. Actual mainnet app payments, canonical contract state and separate public browser readback; not a professional audit, independent users, or organizer acceptance.",
+  "application": {
+    "url": "https://splitreceipt.axiqo.xyz/splitreceipt/",
+    "billUrl": "https://splitreceipt.axiqo.xyz/splitreceipt/?network=mainnet&chainId=5042&contract=0x8522Ea5A413c8402182fF6998Bd7471bAC886142&bill=1",
+    "repository": "https://github.com/a252937166/splitreceipt",
+    "deployedSourceCommit": "00658175885a03f1fd49d61c56a2ce3ff2f86b82",
+    "dedicatedHostRelease": "20261023T083640Z-0065817",
+    "sourceCanonicalSha256": "3fad7fb62471f78223245d5512f630ffcd1edc0ec2feedc57804cdc878ab75f3",
+    "sourceFileCount": 143,
+    "staticReleaseManifestSha256": "6b4603779616056a410aad28b43c839b0692efdcfb46bedc9cf61afe398eadb9",
+    "tlsAllAssetsAndNetworkQueryReadbackMatched": true,
+    "exactCommitCiUrl": "https://github.com/a252937166/splitreceipt/actions/runs/39923724591",
+    "exactCommitCiStatus": "success",
+    "laterDocumentationRevisionIsNotAnApplicationRedeployment": true
+  },
+  "deployment": {
+    "chainId": 5042,
+    "contract": "0x8522Ea5A413c8402182fF6998Bd7471bAC886142",
+    "deploymentHash": "0x65f5a438a7a7e7dd068e53a7fd06e5af02f733dc25f4c250178425c1da00962f",
+    "deploymentBlock": "27419618",
+    "runtimeCodeHash": "0x93454cc56d1f8531f7d506ff22ccbfeefe1b34913c0f688910ee2a20e7bfd18b",
+    "runtimeCodeHashRecheckedAtFinalPayment": true,
+    "nativeDecimals": 18,
+    "contractExplorer": "https://explorer.arc.io/address/0x8522Ea5A413c8402182fF6998Bd7471bAC886142",
+    "deploymentExplorer": "https://explorer.arc.io/tx/0x65f5a438a7a7e7dd068e53a7fd06e5af02f733dc25f4c250178425c1da00962f",
+    "deploymentMethod": "Owner-confirmed local CLI using the reviewed artifact; not the Studio Contracts-panel deployment."
+  },
+  "bill": {
+    "id": "1",
+    "title": "SplitReceipt mainnet demo",
+    "recipient": "0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74",
+    "payers": [
+      "0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74",
+      "0xA944Fe45F10C61F94F8d6a17274673dd1FB51A7c"
+    ],
+    "shareNativeAtomic": "1000000000000000",
+    "shareUSDC": "0.001",
+    "paidStates": [
+      true,
+      true
+    ],
+    "grossContractShareValueUSDC": "0.002",
+    "ownerControlledDemonstrationAccounts": true,
+    "firstPayerEqualsRecipient": true,
+    "firstPaymentNetRecipientPrincipalUSDC": "0",
+    "firstPaymentSenderBalanceChangeIsGasOnly": true,
+    "secondPaymentNetInterWalletUSDC": "0.001",
+    "notCustomerRevenueOrIndependentUsage": true
+  },
+  "transactions": [
+    {
+      "operation": "createBill",
+      "hash": "0x389acbe376e7adb426efbd66095dbea24b764b21f6a9c214874d14546473eee9",
+      "explorer": "https://explorer.arc.io/tx/0x389acbe376e7adb426efbd66095dbea24b764b21f6a9c214874d14546473eee9",
+      "chainId": 5042,
+      "from": "0x3dc8bd7393c65c632ec6395ad6c7916a65662e74",
+      "to": "0x8522ea5a413c8402182ff6998bd7471bac886142",
+      "method": "createBill",
+      "methodSelector": "0x0e42733a",
+      "valueNativeAtomic": "0",
+      "valueUSDC": "0",
+      "receiptStatus": "success",
+      "blockNumber": "27428463",
+      "blockHash": "0x4eea53fcc70a575148bc10da7d54f804b71f172f0ca04ef49c898b9e355b40d6",
+      "gasUsed": "186214",
+      "effectiveGasPriceWei": "20000000000",
+      "gasFeeUSDC": "0.00372428",
+      "event": {
+        "billId": "1",
+        "recipient": "0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74",
+        "share": "1000000000000000",
+        "payers": [
+          "0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74",
+          "0xA944Fe45F10C61F94F8d6a17274673dd1FB51A7c"
+        ],
+        "title": "SplitReceipt mainnet demo"
+      }
+    },
+    {
+      "operation": "payShare-1",
+      "hash": "0x06da59bcccdc87f96970ae89753e9d640bb3c97b2620877f06e9673e487b3716",
+      "explorer": "https://explorer.arc.io/tx/0x06da59bcccdc87f96970ae89753e9d640bb3c97b2620877f06e9673e487b3716",
+      "chainId": 5042,
+      "from": "0x3dc8bd7393c65c632ec6395ad6c7916a65662e74",
+      "to": "0x8522ea5a413c8402182ff6998bd7471bac886142",
+      "method": "payShare(1)",
+      "methodSelector": "0xc97320a7",
+      "valueNativeAtomic": "1000000000000000",
+      "valueUSDC": "0.001",
+      "receiptStatus": "success",
+      "blockNumber": "27429239",
+      "blockHash": "0x2baa38ebe0942198fc26e10489036501b8d3e2f02f43abea22ab6514a1cb3293",
+      "gasUsed": "65972",
+      "effectiveGasPriceWei": "20000000000",
+      "gasFeeUSDC": "0.00131944",
+      "event": {
+        "billId": "1",
+        "payer": "0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74",
+        "amount": "1000000000000000"
+      }
+    },
+    {
+      "operation": "payShare-2",
+      "hash": "0xf246c9ed15463fd871c96e9da353ffd183b6ff31c0b1b940982c86d09f56d5e5",
+      "explorer": "https://explorer.arc.io/tx/0xf246c9ed15463fd871c96e9da353ffd183b6ff31c0b1b940982c86d09f56d5e5",
+      "chainId": 5042,
+      "from": "0xa944fe45f10c61f94f8d6a17274673dd1fb51a7c",
+      "to": "0x8522ea5a413c8402182ff6998bd7471bac886142",
+      "method": "payShare(1)",
+      "methodSelector": "0xc97320a7",
+      "valueNativeAtomic": "1000000000000000",
+      "valueUSDC": "0.001",
+      "receiptStatus": "success",
+      "blockNumber": "27444837",
+      "blockHash": "0x80da482863d188ef8c5c6a8b772c5e46ea0b7ec0a35edc35f37ac22184585f05",
+      "gasUsed": "70865",
+      "effectiveGasPriceWei": "20000000000",
+      "gasFeeUSDC": "0.0014173",
+      "event": {
+        "billId": "1",
+        "payer": "0xA944Fe45F10C61F94F8d6a17274673dd1FB51A7c",
+        "amount": "1000000000000000"
+      }
+    }
+  ],
+  "finalCanonicalChecks": {
+    "receiptSuccess": true,
+    "canonicalBlockMatched": true,
+    "runtimeCodeHashMatched": true,
+    "exactPayShareCalldataValueAndAccountMatched": true,
+    "sharePaidEventMatched": true,
+    "bothPaidStates": true,
+    "recipientReceivedExactShare": true,
+    "payerLostSharePlusFee": true,
+    "priorCreateAndPay1CanonicalRechecked": true,
+    "totalGasWithinBudget": true
+  },
+  "secondPaymentBalanceProof": {
+    "recipient": "0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74",
+    "recipientBeforeNativeAtomic": "74956280000000000",
+    "recipientAfterNativeAtomic": "75956280000000000",
+    "recipientDeltaNativeAtomic": "1000000000000000",
+    "recipientDeltaUSDC": "0.001",
+    "payer": "0xA944Fe45F10C61F94F8d6a17274673dd1FB51A7c",
+    "payerBeforeNativeAtomic": "20000000000000000",
+    "payerAfterNativeAtomic": "17582700000000000",
+    "payerLossNativeAtomic": "2417300000000000",
+    "payerLossEqualsSharePlusGas": true
+  },
+  "browserReadback": {
+    "publicBillRendered": true,
+    "network": "Arc Mainnet",
+    "walletDisconnected": true,
+    "connectWalletControlVisible": true,
+    "afterPageReload": true,
+    "paidCount": 2,
+    "payerCount": 2,
+    "verifiedReceiptCount": 2,
+    "receiptTransactionHashes": [
+      "0x06da59bcccdc87f96970ae89753e9d640bb3c97b2620877f06e9673e487b3716",
+      "0xf246c9ed15463fd871c96e9da353ffd183b6ff31c0b1b940982c86d09f56d5e5"
+    ],
+    "freshBrowserProfileOrClearedStorageClaimed": false,
+    "nativeWalletFinalConfirmationFootageClaimed": false,
+    "domCaptureSha256": "f0f391a93bbd9e1772465f4be65b72bf9bf285d65858266dc45b1d24b2496572",
+    "screenshotSha256": "7e934f618d7400e5e8b1dafee1bf8069f38d328e83c5cc15411bd6827e7a120c"
+  },
+  "fees": {
+    "currency": "USDC",
+    "nativeDecimals": 18,
+    "gasBudgetUSDC": "0.10",
+    "deploymentGasUSDC": "0.01532992",
+    "twoFundingTransfersGasUSDC": "0.00084",
+    "setupGasUSDC": "0.01616992",
+    "appCreateGasUSDC": "0.00372428",
+    "appPay1GasUSDC": "0.00131944",
+    "appPay2GasUSDC": "0.0014173",
+    "appGasUSDC": "0.00646102",
+    "totalGasUSDC": "0.02263094",
+    "remainingGasBudgetUSDC": "0.07736906",
+    "ownerWalletFundingPrincipalUSDC": "0.10",
+    "fundingPrincipalSeparateFromGas": true,
+    "grossAppSharesUSDC": "0.002",
+    "netInterWalletAppTransferUSDC": "0.001",
+    "additionalPaidServicesPurchased": false,
+    "furtherFinancialOperationsRequiredForThisTechnicalDemonstration": false
+  },
+  "verification": {
+    "actualStudioDate": "2026-10-23",
+    "actualStudioTypeScriptTests": 80,
+    "actualStudioPass": 80,
+    "actualStudioFail": 0,
+    "actualStudioBuildAndDependencyIsolationPassed": true,
+    "independentLocalTypecheckTestsBuildAndIsolationPassed": true,
+    "priorSeparateSolidityTestDate": "2026-10-21",
+    "priorSeparateSolidityTests": 38,
+    "priorSeparateFuzzRuns": 256,
+    "solidityTestsNotFreshlyRerunForThisDocumentationUpdate": true
+  },
+  "provenance": {
+    "studioProjectUrl": "https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62",
+    "originalContractAndApplicationOrigin": "Arc Studio",
+    "earlierLocalContributionsPresent": true,
+    "latestInputsExternallyPreparedThenActuallyWrittenAndTestedInOfficialStudioManualTerminal": true,
+    "exclusiveStudioAiAuthorshipClaimed": false,
+    "organizerMixedHistoryEligibilityAccepted": false,
+    "independentReviewerStudioAccess": "UNCONFIRMED"
+  },
+  "media": {
+    "publicVideoUrl": null,
+    "status": "PENDING_PUBLIC_VIDEO",
+    "currentTwoOfTwoPrivateVideoFinalization": "PASS_PRIVATE_EVIDENCE_CLIP_QA",
+    "privateEvidenceClipSha256": "dcf190e1ac38fb50575b9e06a4be97ff3da9c8776785393b1d16c23923e6c0c9",
+    "privateEvidenceClipQaRecordSha256": "3d6242879171ee41712885862b992a5c1d4395eb1775478ac7bee567fd999b2f",
+    "durationSeconds": "175.266667",
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "codec": "h264",
+    "audioTrackPresent": false,
+    "publicPlaybackVerified": false,
+    "olderPartialOneOfTwoVideoIsCurrentFinalProof": false,
+    "captureMethod": "Manually sampled Studio/public-browser milestones, compressed waits; not continuous recording or native-wallet signature footage."
+  },
+  "submission": {
+    "packetStatus": "TECHNICAL_MAINNET_GATES_PASSED_SUBMISSION_GATES_REMAIN",
+    "officialRulesUrl": "https://dorahacks.io/hackathon/arc-microgrants-2/detail",
+    "officialRulesCheckedDate": "2026-10-23",
+    "displayedDeadline": "2026-11-01 23:59 (UTC-4)",
+    "mixedStudioLocalEligibility": "UNRESOLVED",
+    "actualFormSchema": "UNINSPECTED",
+    "organizerDisclaimer": "NOT_ACCEPTED",
+    "submittedForReview": false,
+    "publicBuilderProfileUrl": "https://github.com/a252937166",
+    "publicBuilderProfileReadback": "Root verified public GitHub API access on 2026-10-23; this is not owner identity or submission-rights verification."
+  },
+  "sanitization": {
+    "privateKeys": false,
+    "rawSignedTransactions": false,
+    "transactionSignatureComponents": false,
+    "privateAbsolutePaths": false,
+    "personalContactValues": false,
+    "sourceRecordsPublicFactsOnly": true
+  }
+}

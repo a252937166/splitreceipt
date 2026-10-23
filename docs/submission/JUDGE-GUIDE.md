@@ -1,72 +1,59 @@
-# Judge guide — current testnet demonstration
+# Judge guide — completed mainnet demonstration
 
-> **23 October 2026 update:** Arc Mainnet contract deployment is now verified. See [current mainnet status and evidence](../MAINNET-LIVE.md) for the exact source-pinned deployment, live application/receipt status, fees and remaining submission work. Deployment and wallet funding alone are not a through-application payment. The dated Testnet/preparation material below is retained as historical evidence; its statements about an undeployed or disabled mainnet describe that earlier checkpoint. No competition submission or eligibility acceptance is claimed.
+Updated 23 October 2026. This guide verifies the public product and already completed mainnet transactions. **No wallet connection, new transaction or funds are needed to read it.** Submission and mixed-provenance acceptance remain separate.
 
-This guide verifies the public prototype without requesting a wallet connection or a new transaction. It is a testnet review path, not an eligible-mainnet submission claim.
+## Read the settled mainnet bill
 
-## Read Bill 6 without a wallet
+Open [Mainnet Bill 1](https://splitreceipt.axiqo.xyz/splitreceipt/?network=mainnet&chainId=5042&contract=0x8522Ea5A413c8402182fF6998Bd7471bAC886142&bill=1). The explicit network/chain/contract query selects the reviewed Arc Mainnet deployment; a blank link or the built-in Demo receipt selects historical Testnet material.
 
-Open [the latest completed public-wallet retest](https://splitreceipt.axiqo.xyz/splitreceipt/?network=testnet&chainId=5042002&contract=0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26&bill=6). The 22 October 2026 readback showed:
+The public wallet-disconnected reload showed:
 
-- Title: **Public wallet retest 2026-10-22**.
-- Chain: **Arc Testnet 5042002**; test USDC has no monetary value.
-- Recipient and payer 1: `0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74`.
-- Payer 2: `0xA944Fe45F10C61F94F8d6a17274673dd1FB51A7c`.
-- Each share **0.001 test USDC**; total **0.002**; **Settled, 2/2 paid**.
-- Two payment receipt links and **2/2 receipts verified**.
+- **Arc Mainnet 5042**, Bill **1**, title **SplitReceipt mainnet demo**.
+- **0.001 USDC per payer**, total gross shares **0.002 USDC**.
+- **Settled**, **2 of 2 paid**, **2/2 receipts verified**.
+- Receipt links matching the two payment hashes below and a **Connect wallet** control.
 
-No wallet or funds are needed for reading. A temporary RPC failure or an older fixed-head history run can delay links; **Refresh bill** starts fresh verification, and **Continue receipt history** advances bounded history scanning when offered. A paid-state count and a verified receipt count are different indicators.
+Recipient/payer 1 is `0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74`. Payer 2 is `0xA944Fe45F10C61F94F8d6a17274673dd1FB51A7c`. Both belong to the owner. The browser readback followed disconnect and page reload in the existing environment; a new profile or cleared local cache was not claimed. If the public RPC is temporarily unavailable, use **Refresh bill**; **Continue receipt history** advances bounded receipt scans when offered. A paid-state count is distinct from the verified-receipt count.
 
-The app's built-in **Demo receipt** button still opens [historical Bill 3](https://splitreceipt.axiqo.xyz/splitreceipt/?bill=3). It was also read back with both receipts on the new release; do not confuse its older transactions with Bill 6.
+## Inspect real USDC movement
 
-## Inspect the public chain evidence
+Mainnet contract: [`0x8522Ea5A413c8402182fF6998Bd7471bAC886142`](https://explorer.arc.io/address/0x8522Ea5A413c8402182fF6998Bd7471bAC886142). The exact deployment/runtime was independently reviewed and matched onchain.
 
-Contract: [`0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26`](https://explorer.testnet.arc.io/address/0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26). All three transactions below succeeded on chain 5042002.
+| Operation | Canonical successful transaction | Block | Value (USDC) | Gas (USDC) |
+| --- | --- | --- | --- | --- |
+| Deploy | [`0x65f5a438a7a7e7dd068e53a7fd06e5af02f733dc25f4c250178425c1da00962f`](https://explorer.arc.io/tx/0x65f5a438a7a7e7dd068e53a7fd06e5af02f733dc25f4c250178425c1da00962f) | 27419618 | 0 | 0.01532992 |
+| Create Bill 1 | [`0x389acbe376e7adb426efbd66095dbea24b764b21f6a9c214874d14546473eee9`](https://explorer.arc.io/tx/0x389acbe376e7adb426efbd66095dbea24b764b21f6a9c214874d14546473eee9) | 27428463 | 0 | 0.00372428 |
+| Pay share 1 | [`0x06da59bcccdc87f96970ae89753e9d640bb3c97b2620877f06e9673e487b3716`](https://explorer.arc.io/tx/0x06da59bcccdc87f96970ae89753e9d640bb3c97b2620877f06e9673e487b3716) | 27429239 | 0.001 | 0.00131944 |
+| **Pay share 2 — distinct-wallet example** | [`0xf246c9ed15463fd871c96e9da353ffd183b6ff31c0b1b940982c86d09f56d5e5`](https://explorer.arc.io/tx/0xf246c9ed15463fd871c96e9da353ffd183b6ff31c0b1b940982c86d09f56d5e5) | 27444837 | 0.001 | 0.00141730 |
 
-| Operation | Transaction | Block | Gas fee (test USDC) |
-| --- | --- | --- | --- |
-| Bill 6 creation | [`0x9fc1c8409b65668fadbcc04ec3e5e1c099328293eabca58d13e1cfb30f8e40f4`](https://explorer.testnet.arc.io/tx/0x9fc1c8409b65668fadbcc04ec3e5e1c099328293eabca58d13e1cfb30f8e40f4) | 68476739 | 0.00422965 |
-| Payer 1 | [`0x4ac7376f58da853c8e020db7a7a4b2b9545dcb41b44ec62da7a815160d875f4e`](https://explorer.testnet.arc.io/tx/0x4ac7376f58da853c8e020db7a7a4b2b9545dcb41b44ec62da7a815160d875f4e) | 68476809 | 0.0016493 |
-| Payer 2 | [`0x0a5bed3b9d6f33bce647cbce41b99212add66b47a9917ecac3dcb170a4f5a2fd`](https://explorer.testnet.arc.io/tx/0x0a5bed3b9d6f33bce647cbce41b99212add66b47a9917ecac3dcb170a4f5a2fd) | 68478093 | 0.001771625 |
+Each `payShare(1)` passes exactly `1000000000000000` native atoms, using 18 decimals. Canonical receipt/block checks, exact sender/target/calldata/value, matching `SharePaid` events and final `[true, true]` paid states all passed. Payer 2's transfer increased the recipient balance by **0.001 USDC** and reduced the payer by **0.001 plus Gas**.
 
-Creation sends zero payment value. Each `payShare(6)` sends exactly `1000000000000000` native atoms (0.001 test USDC, 18 decimals). Independent canonical readback checked runtime identity, sender/target/call data/value, successful receipts, canonical block hashes, matching `BillCreated`/`SharePaid` events and both paid states. Total gas was 0.007650575 test USDC. See [the sanitized evidence](../../tests/evidence/public-wallet-flow-2026-10-22.json).
+Payer 1 is also the recipient, so that first share returns to its sender and its net wallet change is only Gas. Gross contract shares are 0.002 USDC; net transfer between the two wallets is 0.001 USDC. Wallet-funding transfers are not app-payment evidence. No external customer, revenue or independent-user claim is made. See [sanitized evidence](../../tests/evidence/mainnet-flow-2026-10-23.json).
 
-The public page showed creation 0/2, first payment 1/2, then second payment 2/2 with both receipts. After app Disconnect and reload in the **same browser profile**, it still showed both verified receipts and Connect wallet. Local hints/storage were not cleared; this is not a clean-profile test.
+## Verify source and checks
 
-## Verify source and tests
+Repository: https://github.com/a252937166/splitreceipt. Deployed application source: `00658175885a03f1fd49d61c56a2ce3ff2f86b82`; dedicated-host release `20261023T083640Z-0065817`. [CI for this exact commit](https://github.com/a252937166/splitreceipt/actions/runs/39923724591) passed install/isolation/typecheck/tests/build and performs no Pages publication. Separate public static/TLS readback matched this release.
 
-Repository: https://github.com/a252937166/splitreceipt. Deployed application source: `4dae47f01bb78126e5c70621d87af0c9899cb9c6`; dedicated-host release `20261021T192007Z-4dae47f`. Any later documentation-only commit is a separate repository revision, not proof of a new app deployment.
+Actual 23 October Studio and independent local checks passed **80 TypeScript tests**, typecheck, production build and dependency isolation. **38 Solidity tests and 256 fuzz runs** were separately recorded on 21 October, including local-EVM mainnet-preparation cases. They are not a fresh Solidity rerun for this documentation update and are not the source of the real mainnet success claim.
 
-[CI for that exact application commit](https://github.com/a252937166/splitreceipt/actions/runs/39660377061) passed install, dependency isolation, typecheck, tests and build. Its Pages deployment is separate from the dedicated-host HTTPS/asset readback. Studio and independent local records dated 21 October show **76 TypeScript tests** passing. The CI test step succeeded; its job name alone is not the source of that count.
-
-Using Node 22.23.1 and npm 10.9.8, from the repository root:
+From the repository root, using Node 22.23.1 and npm 10.9.8:
 
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
 npm run verify:isolation
-npm run typecheck
-npm test
-npm run build
+npm run check
 ```
 
-With Foundry installed, still from the repository root:
+With Foundry available, `npm run contracts:test` runs the local contract suite from the repository root. These verification commands do not request a mainnet transaction.
 
-```sh
-npm run contracts:test
-```
+## Review Studio and provenance
 
-The 21 October preparation recorded **38 Solidity tests and 256 fuzz runs**, in Studio and independently locally. Three added mainnet-preparation cases use local-EVM chain ID 5042 and locally supplied balances; they do not use a mainnet fork, mainnet funds or a mainnet deployment. The older 35-test/17 October record remains historical. Do not run the Solidity command from `contracts/`.
+[Arc Studio project](https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62). Independent reviewer access is **UNCONFIRMED**; the URL alone does not prove access without the owner's session.
 
-## Review Studio provenance
+The original contract/app originated in Studio, with later Studio UI work and tests. Early local refinements and recent externally prepared inputs remain disclosed. Recent inputs were actually written/tested through Studio's official manual terminal and adopted with exact hashes. Mainnet deployment used an owner-confirmed local CLI, not the Studio Contracts panel. Source correspondence does not establish exclusive Studio-AI authorship or acceptance under the outside-Studio exclusion. See [provenance](../PROVENANCE.md).
 
-[Studio project](https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62). Access for an independent reviewer without the owner's session is **unconfirmed**; a project URL alone is not anonymous-access proof. The public repo and [provenance record](../PROVENANCE.md) expose source/history while that access question remains open.
+## Media and remaining boundaries
 
-The contract and original app began in Studio. Earlier local refinements were later synchronized; later UI work was Studio-authored. Latest mainnet/wallet inputs were prepared with Codex outside Studio and actually applied/tested through Studio's official manual terminal. Exact terminal/per-file hashes establish correspondence, not exclusive Studio-AI authorship or organizer acceptance. No new full-source ZIP or Studio-AI generation is claimed for the latest public retest.
+Public walkthrough URL: **PENDING_PUBLIC_VIDEO**. The private Studio/mainnet evidence edit has completed QA (**175.266667 seconds, 1920×1080, H.264, 30 fps, silent**) and remains unpublished. The earlier one-of-two clip is a partial historical checkpoint. The captures are manually sampled Studio/public-browser milestones with waits compressed; they do not show native wallet final confirmations or claim continuous recording.
 
-## Recording and observation limits
-
-The latest private video is 63 seconds, silent, and assembled from 21 milestone screenshots with waits compressed. It passed media QA but is not uploaded. It contains no Studio editor/source edits or native wallet signature screens. The owner reported no security warning when confirming creation and the second payment; the first payment's native signature actor/action and warning state were not observed. Chain verification is separate from those browser-signature observations.
-
-The captured app console sample contained no error-level entries, but MetaMask listener/orphan-stream warnings persisted. The app's explicit-provider/session repair does not establish that every extension-internal error or all future security warnings are fixed.
-
-No mainnet deployment/payment, professional audit or completed competition submission is claimed. See [readiness](READINESS.md), [validation](../VALIDATION.md), [site review](../METAMASK-SITE-REVIEW.md) and [evidence index](EVIDENCE-INDEX.md).
+Total actual Gas for deployment, two funding transfers, bill creation and two shares is **0.02263094 USDC**. Funding principal 0.10 USDC is separate. No new payment is needed for this review. No professional audit, production readiness, organizer acceptance, public final-video playback or completed DoraHacks submission is claimed. See [readiness](READINESS.md).
