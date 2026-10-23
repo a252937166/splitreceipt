@@ -1,4 +1,16 @@
-export type ReceiptHash = `0x${string}`
+/**
+ * Receipt scope identity and bounded SharePaid history scanning.
+ *
+ * A scope pins a bill to one chain and one contract. Everything that caches,
+ * stores or displays receipts is keyed by it, so a receipt found for one
+ * deployment can never populate another.
+ *
+ * History scanning only produces UNTRUSTED candidate hashes. Every candidate
+ * still has to pass `discoverReceiptsFromHints` (canonical block and log
+ * identity) and `verifyPaymentTransaction` (sender, target, value, calldata)
+ * before it is shown as a verified receipt.
+ */
+import { parseAbiItem, type PublicClient } from 'viem'
 
 export interface ReceiptScope {
   chainId: number
@@ -6,179 +18,152 @@ export interface ReceiptScope {
   billId: bigint
 }
 
-export interface SharePaidLog {
-  address: string
-  args: { billId?: bigint; payer?: string; amount?: bigint }
-  transactionHash: ReceiptHash | null
-  blockNumber: bigint | null
-  removed?: boolean
-}
-
-export interface ReceiptHistory {
-  scope: ReceiptScope
-  key: string
-  floor: bigint
-  /** One contiguous range, extended at either end only after a successful page. */
-  scannedFrom: bigint | null
-  scannedTo: bigint | null
-  lastHead: bigint | null
-  receipts: Record<string, ReceiptHash>
-}
-
-export interface PaymentSnapshot extends ReceiptScope {
-  payer: string
-  amount: bigint
-  submittedHash?: ReceiptHash
-}
-
-export const RECEIPT_LOG_PAGE_SIZE = 2_000n
-export const RECEIPT_HISTORY_BATCH_PAGES = 25
-
 export function receiptScopeKey(scope: ReceiptScope): string {
-  return `${scope.chainId}:${scope.contract.toLowerCase()}:${scope.billId}`
+  return `${scope.chainId}:${scope.contract.toLowerCase()}:${scope.billId.toString()}`
 }
 
-export function newReceiptHistory(scope: ReceiptScope, deploymentBlock: bigint | null): ReceiptHistory {
-  return {
-    scope: { ...scope, contract: scope.contract.toLowerCase() },
-    key: receiptScopeKey(scope),
-    floor: deploymentBlock ?? 0n,
-    scannedFrom: null,
-    scannedTo: null,
-    lastHead: null,
-    receipts: {},
-  }
+export function sameScope(a: ReceiptScope, b: ReceiptScope): boolean {
+  return receiptScopeKey(a) === receiptScopeKey(b)
 }
 
-/** A receipt link is accepted only for the requested contract, bill, payer and exact share. */
-export function isMatchingSharePaid(
-  scope: ReceiptScope,
-  log: Pick<SharePaidLog, 'address' | 'args' | 'removed'>,
-  payer: string,
-  amount: bigint,
-): boolean {
-  return !log.removed &&
-    log.address.toLowerCase() === scope.contract.toLowerCase() &&
-    log.args.billId === scope.billId &&
-    log.args.payer?.toLowerCase() === payer.toLowerCase() &&
-    log.args.amount === amount
+const SHARE_PAID = parseAbiItem(
+  'event SharePaid(uint256 indexed billId, address indexed payer, uint256 amount)',
+)
+
+/** Blocks per eth_getLogs request. Kept modest; the real limit is unmeasured. */
+export const HISTORY_PAGE_BLOCKS = 5_000n
+/** Pages scanned per user action. */
+export const HISTORY_PAGES_PER_RUN = 12
+
+export interface HistoryCursor {
+  /** Highest block not yet scanned; scanning proceeds downward from here. */
+  nextTo: bigint
+  /** Lowest block that needs scanning (deployment block, or a bounded lookback). */
+  floor: bigint
+  /** True when the floor was reached. */
+  done: boolean
 }
 
-/** Uses the mined hash, including replacements; a successful wallet cancel has no matching event. */
-export function confirmedPaymentHash(
-  pending: PaymentSnapshot | null,
-  submittedHash: ReceiptHash | undefined,
-  receipt: {
-    status: 'success' | 'reverted'
-    transactionHash: ReceiptHash
-    logs: readonly Pick<SharePaidLog, 'address' | 'args' | 'removed'>[]
-  } | null,
-): ReceiptHash | null {
-  if (!pending?.submittedHash || pending.submittedHash !== submittedHash || receipt?.status !== 'success') {
-    return null
-  }
-  return receipt.logs.some(log => isMatchingSharePaid(pending, log, pending.payer, pending.amount))
-    ? receipt.transactionHash
-    : null
+export interface HistoryCandidate {
+  payer: string
+  hash: `0x${string}`
 }
 
-export function hasPaidReceipts(history: ReceiptHistory, paidPayers: readonly string[]): boolean {
-  return paidPayers.every(payer => Boolean(history.receipts[payer.toLowerCase()]))
+export interface HistoryScanResult {
+  candidates: HistoryCandidate[]
+  cursor: HistoryCursor
+  pagesScanned: number
+  error: string | null
+  /** True when scanning stopped early because the caller's context went stale. */
+  stopped: boolean
 }
 
-export function historyRangeComplete(history: ReceiptHistory): boolean {
-  return history.scannedFrom === history.floor &&
-    history.scannedTo !== null && history.lastHead !== null && history.scannedTo >= history.lastHead
+type LogClient = Pick<PublicClient, 'getLogs' | 'getBlockNumber'>
+
+/**
+ * Where scanning starts. With a known deployment block the floor is that block
+ * (full history). Without one the floor is a bounded lookback from head and the
+ * caller must present the history as incomplete.
+ */
+export async function startHistoryCursor(
+  client: Pick<PublicClient, 'getBlockNumber'>,
+  deployBlock: bigint | null,
+  lookback: bigint = 50_000n,
+): Promise<HistoryCursor> {
+  const head = await client.getBlockNumber()
+  const floor = deployBlock !== null ? deployBlock : head > lookback ? head - lookback : 0n
+  return { nextTo: head, floor, done: head < floor }
+}
+
+export interface ScanOptions {
+  /**
+   * Lowercase payer identities that still have NO verified receipt. A run may pause
+   * early once every one of them has at least one candidate. Candidates for payers who
+   * are already verified do not count: they prove nothing about the missing ones.
+   * The cursor is never marked done by this; `done` means the floor was reached.
+   */
+  missingPayers?: readonly string[]
+  pageBlocks?: bigint
+  maxPages?: number
+  /** Polled before every network page; scanning ends as soon as it returns true. */
+  shouldStop?: () => boolean
 }
 
 /**
- * Look up a bounded batch, newest blocks first. Refreshes extend the known range
- * to the new head, then continue toward the deployment block (or genesis).
- * Successful pages are committed individually; a failed page is retried as-is.
- * State lives per chain + contract + bill, independent of the connected wallet.
+ * Scan downward from the cursor for SharePaid logs of one bill. Stops after
+ * `maxPages` pages, when the floor is reached, when every missing payer has a
+ * candidate, or when `shouldStop` says the context is stale. RPC failures stop the
+ * run and are reported without advancing past the failed page, so a retry resumes
+ * where it stopped.
  */
-export async function scanReceiptHistoryBatch(options: {
-  history: ReceiptHistory
-  head: bigint
-  payers: readonly string[]
-  paidPayers: readonly string[]
-  amount: bigint
-  fetchLogs: (range: { fromBlock: bigint; toBlock: bigint }) => Promise<readonly SharePaidLog[]>
-  onPage?: (history: ReceiptHistory) => void
-  isCancelled?: () => boolean
-  maxPages?: number
-  pageSize?: bigint
-}): Promise<{
-  history: ReceiptHistory
-  reason: 'receipts-found' | 'range-complete' | 'page-limit' | 'error' | 'cancelled'
-  error?: Error
-}> {
-  const { head, amount, fetchLogs, onPage, isCancelled } = options
-  const pageSize = options.pageSize ?? RECEIPT_LOG_PAGE_SIZE
-  const maxPages = options.maxPages ?? RECEIPT_HISTORY_BATCH_PAGES
-  let history: ReceiptHistory = { ...options.history, lastHead: head }
-  const payers = new Set(options.payers.map(payer => payer.toLowerCase()))
+export async function scanSharePaidPage(
+  client: LogClient,
+  scope: ReceiptScope,
+  cursor: HistoryCursor,
+  options: ScanOptions = {},
+): Promise<HistoryScanResult> {
+  const pageBlocks = options.pageBlocks ?? HISTORY_PAGE_BLOCKS
+  const maxPages = options.maxPages ?? HISTORY_PAGES_PER_RUN
+  const missing = options.missingPayers ? new Set(options.missingPayers.map((p) => p.toLowerCase())) : null
 
-  if (pageSize < 1n || !Number.isInteger(maxPages) || maxPages < 1) {
-    throw new Error('Invalid history page limits.')
-  }
-  if (head < history.floor || (history.scannedTo !== null && head < history.scannedTo)) {
-    return { history: options.history, reason: 'error', error: new Error('RPC head is behind the receipt history. Try again when the RPC catches up.') }
-  }
+  const candidates: HistoryCandidate[] = []
+  const seenHashes = new Set<string>()
+  const coveredMissing = new Set<string>()
+  let next = cursor.nextTo
+  let pages = 0
+  let done = cursor.done
+  let error: string | null = null
+  let stopped = false
 
-  for (let page = 0; page < maxPages; page++) {
-    if (isCancelled?.()) return { history, reason: 'cancelled' }
-    // Contract state lists each paid payer once. Count matching payers, never log count.
-    if (hasPaidReceipts(history, options.paidPayers)) return { history, reason: 'receipts-found' }
-    if (historyRangeComplete(history)) return { history, reason: 'range-complete' }
-
-    let fromBlock: bigint
-    let toBlock: bigint
-    if (history.scannedTo === null || history.scannedFrom === null) {
-      toBlock = head
-      fromBlock = head - pageSize + 1n > history.floor ? head - pageSize + 1n : history.floor
-    } else if (history.scannedTo < head) {
-      // New payments since the previous lookup are searched before older gaps.
-      fromBlock = history.scannedTo + 1n
-      toBlock = fromBlock + pageSize - 1n < head ? fromBlock + pageSize - 1n : head
-    } else {
-      toBlock = history.scannedFrom - 1n
-      fromBlock = toBlock - pageSize + 1n > history.floor ? toBlock - pageSize + 1n : history.floor
+  while (!done && pages < maxPages) {
+    if (options.shouldStop?.()) {
+      stopped = true
+      break
     }
-
+    if (missing && missing.size === 0) break
+    const from = next - pageBlocks + 1n > cursor.floor ? next - pageBlocks + 1n : cursor.floor
     try {
-      const logs = await fetchLogs({ fromBlock, toBlock })
-      if (isCancelled?.()) return { history, reason: 'cancelled' }
-      const receipts = { ...history.receipts }
+      const logs = await client.getLogs({
+        address: scope.contract as `0x${string}`,
+        event: SHARE_PAID,
+        args: { billId: scope.billId },
+        fromBlock: from,
+        toBlock: next,
+      })
+      if (options.shouldStop?.()) {
+        stopped = true
+        break
+      }
       for (const log of logs) {
-        const payer = log.args.payer?.toLowerCase()
-        if (!payer || !payers.has(payer) || !log.transactionHash ||
-          log.blockNumber === null || log.blockNumber < fromBlock || log.blockNumber > toBlock ||
-          !isMatchingSharePaid(history.scope, log, payer, amount)) continue
-
-        // This contract disallows duplicate payments. Repeated copies of the
-        // same log are harmless; different hashes require retry, never guessing.
-        if (receipts[payer] && receipts[payer] !== log.transactionHash) {
-          throw new Error('RPC returned conflicting payment receipts for one payer. Previously verified links are kept; retry or check the explorer.')
-        }
-        receipts[payer] = log.transactionHash
+        const hash = log.transactionHash
+        const payer = log.args.payer
+        if (!hash || !payer || log.removed) continue
+        const lc = hash.toLowerCase()
+        if (seenHashes.has(lc)) continue
+        seenHashes.add(lc)
+        const p = payer.toLowerCase()
+        if (missing?.has(p)) coveredMissing.add(p)
+        candidates.push({ payer: p, hash: lc as `0x${string}` })
       }
-      history = {
-        ...history,
-        scannedFrom: history.scannedFrom === null || fromBlock < history.scannedFrom ? fromBlock : history.scannedFrom,
-        scannedTo: history.scannedTo === null || toBlock > history.scannedTo ? toBlock : history.scannedTo,
-        receipts,
-      }
-      onPage?.(history)
-    } catch (error) {
-      return { history, reason: 'error', error: error instanceof Error ? error : new Error('Receipt lookup failed.') }
+    } catch {
+      error = 'Receipt history lookup paused. Check your connection and continue.'
+      break
     }
+    pages++
+    if (from <= cursor.floor) {
+      done = true
+      next = cursor.floor
+    } else {
+      next = from - 1n
+    }
+    if (missing && [...missing].every((p) => coveredMissing.has(p))) break
   }
 
   return {
-    history,
-    reason: hasPaidReceipts(history, options.paidPayers)
-      ? 'receipts-found'
-      : historyRangeComplete(history) ? 'range-complete' : 'page-limit',
+    candidates,
+    cursor: { nextTo: next, floor: cursor.floor, done },
+    pagesScanned: pages,
+    error,
+    stopped,
   }
 }

@@ -45,12 +45,14 @@ function utf8ByteLength(s: string): number {
 }
 
 // ── Bundled public hint catalog ───────────────────────────────────────────────
-// All entries are public testnet transaction hashes that must be reverified
+// All entries are public transaction hashes (per chain and contract) that must be reverified
 // via a live RPC call before any are accepted as confirmed receipts.
 // Keyed by "chainId:lowercaseContract:billId" — identical to receiptScopeKey().
 
 const CONTRACT = '0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26'
 const CHAIN    = 5042002
+const MAINNET_CONTRACT = '0x8522ea5a413c8402182ff6998bd7471bac886142'
+const MAINNET_CHAIN    = 5042
 
 const HINT_CATALOG: Readonly<Record<string, readonly HintHash[]>> = {
   [`${CHAIN}:${CONTRACT}:1`]: [
@@ -64,6 +66,12 @@ const HINT_CATALOG: Readonly<Record<string, readonly HintHash[]>> = {
   [`${CHAIN}:${CONTRACT}:3`]: [
     '0xc0d0e348b75178251ac1e71a6d8d3a7831267aeba447ee4dd81c20eb3dfec6f4',
     '0xf79dc80600bd05be25fb904d845f126d4d95b59dad94ad47c164c38a35b9e9c9',
+  ],
+  // Arc Mainnet, reviewed contract, Bill 1: the two public payShare transactions.
+  // Like every hint they are only candidates until verified against the live chain.
+  [`${MAINNET_CHAIN}:${MAINNET_CONTRACT}:1`]: [
+    '0x06da59bcccdc87f96970ae89753e9d640bb3c97b2620877f06e9673e487b3716',
+    '0xf246c9ed15463fd871c96e9da353ffd183b6ff31c0b1b940982c86d09f56d5e5',
   ],
 }
 
@@ -259,17 +267,9 @@ export function assembleCandidates(
 export function buildShareUrl(
   billId: bigint,
   verifiedHashes: readonly HintHash[],
-  scope: { key: 'testnet' | 'mainnet'; chainId: number; contract: string | null } = {
-    key: 'testnet', chainId: CHAIN, contract: CONTRACT,
-  },
 ): string {
   const url = new URL(window.location.href)
-  if (!scope.contract) throw new Error('Cannot share an unconfigured deployment.')
-  url.searchParams.set('network', scope.key)
-  url.searchParams.set('chainId', String(scope.chainId))
-  url.searchParams.set('contract', scope.contract.toLowerCase())
   url.searchParams.set('bill', billId.toString())
-  url.hash = ''
   url.searchParams.delete('receipts')
 
   // Case-insensitive dedup: normalise all to lowercase, then deduplicate, then slice.

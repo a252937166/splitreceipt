@@ -34,7 +34,7 @@ The compiler is Solidity 0.8.28, Paris EVM, optimizer 200 runs. OpenZeppelin Con
 
 ## Network and credentials
 
-The public application configures only Arc Testnet, chain ID 5042002, and the official public RPC `https://rpc.testnet.arc.io`. Mainnet chains and transports are absent. The app's native test USDC uses 18 decimals; its displayed/input precision is limited to 6 decimals using integer arithmetic.
+**Historical (as of the 21–22 October releases):** the public application configured only Arc Testnet, chain ID 5042002, and the official public RPC `https://rpc.testnet.arc.io`; mainnet chains and transports were absent. Since 23 October the deployed release and the rebuild candidate also include a separate Arc Mainnet 5042 context for one reviewed contract (see [MAINNET-LIVE.md](MAINNET-LIVE.md)); dependency isolation is unchanged. The app's native test USDC uses 18 decimals; its displayed/input precision is limited to 6 decimals using integer arithmetic.
 
 `npm run chain:check` independently checks the RPC chain ID, the historical deployment's runtime hash, the checked-in contract source hash, the settled example bill and its two mined `SharePaid` receipts. It is read-only and does not load a private key or send a transaction. The deployment record is public in `deployments/arc-testnet.json`.
 

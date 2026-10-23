@@ -1,29 +1,39 @@
 import { createConfig, http } from 'wagmi'
-import { EXPLICIT_WALLET_CONFIG } from './walletPolicy'
 import { defineChain } from 'viem'
-import { NETWORK_FACTS } from './networkContext'
-import { activeNetwork } from './activeNetwork'
+import { requireChain } from '@/onchain-facts'
 
-const testnet = NETWORK_FACTS.testnet
-const mainnet = NETWORK_FACTS.mainnet
-export const arcTestnet = defineChain({
-  id: testnet.chainId, name: testnet.name,
-  nativeCurrency: { name: 'Test USDC', symbol: 'USDC', decimals: 18 },
-  rpcUrls: { default: { http: [testnet.rpcUrl] } },
-  blockExplorers: { default: { name: 'Arc Testnet Explorer', url: testnet.explorerBase } },
-  testnet: true,
-})
-export const arcMainnet = defineChain({
-  id: mainnet.chainId, name: mainnet.name,
-  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-  rpcUrls: { default: { http: [mainnet.rpcUrl] } },
-  blockExplorers: { default: { name: 'Arc Explorer', url: mainnet.explorerBase } },
-  testnet: false,
-})
-export const activeChain = activeNetwork.key === 'mainnet' ? arcMainnet : arcTestnet
+function arcChain(chainId: number) {
+  const fact = requireChain(chainId)
+  return defineChain({
+    id: fact.chainId,
+    name: fact.name,
+    nativeCurrency: {
+      name: fact.nativeCurrency.symbol,
+      symbol: fact.nativeCurrency.symbol,
+      decimals: fact.nativeCurrency.decimals,
+    },
+    rpcUrls: { default: { http: fact.rpcUrls } },
+    blockExplorers: { default: { name: 'Arc Explorer', url: fact.explorerBase } },
+    testnet: fact.isTestnet,
+  })
+}
+
+export const arcTestnetChain = arcChain(5042002)
+export const arcMainnetChain = arcChain(5042)
+
+/**
+ * Wallets are discovered through EIP-6963, so each installed browser wallet
+ * appears under its own name. No generic legacy-global injected connector is added,
+ * and connection state is not persisted: the user picks a wallet explicitly
+ * every visit. Both Arc networks are configured; which one a page uses comes
+ * from its URL context, never from the wallet.
+ */
 export const config = createConfig({
-  // Testnet remains first; every app action also supplies its explicit immutable chainId.
-  chains: [arcTestnet, arcMainnet],
-  ...EXPLICIT_WALLET_CONFIG,
-  transports: { [arcTestnet.id]: http(testnet.rpcUrl), [arcMainnet.id]: http(mainnet.rpcUrl) },
+  chains: [arcTestnetChain, arcMainnetChain],
+  transports: {
+    [arcTestnetChain.id]: http(arcTestnetChain.rpcUrls.default.http[0]),
+    [arcMainnetChain.id]: http(arcMainnetChain.rpcUrls.default.http[0]),
+  },
+  multiInjectedProviderDiscovery: true,
+  storage: null,
 })

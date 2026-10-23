@@ -1,0 +1,225 @@
+{
+  "abi": [
+    {
+      "type": "function",
+      "name": "billCount",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "createBill",
+      "inputs": [
+        {
+          "name": "title",
+          "type": "string",
+          "internalType": "string"
+        },
+        {
+          "name": "recipient",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "payers",
+          "type": "address[]",
+          "internalType": "address[]"
+        },
+        {
+          "name": "share",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "billId",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "getBill",
+      "inputs": [
+        {
+          "name": "billId",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "title",
+          "type": "string",
+          "internalType": "string"
+        },
+        {
+          "name": "recipient",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "payers",
+          "type": "address[]",
+          "internalType": "address[]"
+        },
+        {
+          "name": "share",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "paidStates",
+          "type": "bool[]",
+          "internalType": "bool[]"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "payShare",
+      "inputs": [
+        {
+          "name": "billId",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "payable"
+    },
+    {
+      "type": "event",
+      "name": "BillCreated",
+      "inputs": [
+        {
+          "name": "billId",
+          "type": "uint256",
+          "indexed": true,
+          "internalType": "uint256"
+        },
+        {
+          "name": "recipient",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "share",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "payers",
+          "type": "address[]",
+          "indexed": false,
+          "internalType": "address[]"
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "indexed": false,
+          "internalType": "string"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SharePaid",
+      "inputs": [
+        {
+          "name": "billId",
+          "type": "uint256",
+          "indexed": true,
+          "internalType": "uint256"
+        },
+        {
+          "name": "payer",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "error",
+      "name": "AlreadyPaid",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "DuplicatePayer",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "ForwardFailed",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "InvalidBillId",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "InvalidPayerCount",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "NotAPayer",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "ReentrancyGuardReentrantCall",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "TitleTooLong",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "WrongAmount",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "ZeroPayer",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "ZeroRecipient",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "ZeroShare",
+      "inputs": []
+    }
+  ]
+}

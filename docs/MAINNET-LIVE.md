@@ -54,3 +54,7 @@ The original app and contract began in [Arc Studio](https://studio.arc.io/app/65
 **Public video: PENDING_PUBLIC_VIDEO.** A private Studio/mainnet evidence edit has completed QA: **175.266667 seconds, 1920×1080, H.264, 30 fps, silent**. It has no public URL or independent public playback. The earlier one-of-two clip is a historical checkpoint. Captures are sampled milestones with compressed waits, not continuous recording or native-wallet signing footage.
 
 The [official round](https://dorahacks.io/hackathon/arc-microgrants-2/detail), checked 23 October, requires development in Studio across the build and excludes outside-Studio projects. Acceptance of this mixed Studio/local history remains **unresolved**. Independent Studio reviewer access, a publicly playable walkthrough, owner/form disclosures, the actual form schema and event agreements remain open. No organizer acceptance, formal submission, professional audit or production-readiness claim is made. See [readiness](submission/READINESS.md).
+
+## Note added 23 October 2026 (rebuild candidate)
+
+The counts and source revision above describe the deployed application commit. A separate, unpublished Studio replacement-rebuild candidate is recorded in [the rebuild record](STUDIO-REIMPLEMENTATION-2026-10-23.md). No new mainnet transaction or deployment was made for it; the evidence on this page is unchanged.
