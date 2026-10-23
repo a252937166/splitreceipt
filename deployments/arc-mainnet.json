@@ -17,6 +17,37 @@
     "reentrancyGuardSlot0": "1"
   },
   "deploymentGasUSDC": "0.01532992",
-  "applicationPaymentStatus": "NOT_YET_VERIFIED",
-  "provenance": "Original Solidity created in Arc Studio. Reviewed compiler artifact deployed by the owner using the local owner-confirmed CLI; not a Studio Contracts-panel deployment or an application payment. Canonical deployment readback is required before this record is adopted. Wallet funding is not through-application payment evidence."
+  "applicationPaymentStatus": "VERIFIED_PUBLIC_APP_TWO_OF_TWO_CANONICAL",
+  "provenance": "Original Solidity created in Arc Studio. Reviewed compiler artifact deployed by the owner using the local owner-confirmed CLI, not the Studio Contracts panel. Canonical deployment/runtime and public-app Bill 1 create plus two owner-confirmed payShare receipts verified on Arc Mainnet. The first payer is the recipient (net Gas only); the second share moves 0.001 USDC between two owner-controlled wallets. Earlier mixed Studio/local contributions remain disclosed; organizer eligibility is unresolved.",
+  "applicationPaymentEvidence": "../tests/evidence/mainnet-flow-2026-10-23.json",
+  "applicationFlow": {
+    "observedDate": "2026-10-23",
+    "billId": "1",
+    "billUrl": "https://splitreceipt.axiqo.xyz/splitreceipt/?network=mainnet&chainId=5042&contract=0x8522Ea5A413c8402182fF6998Bd7471bAC886142&bill=1",
+    "createHash": "0x389acbe376e7adb426efbd66095dbea24b764b21f6a9c214874d14546473eee9",
+    "payShareHashes": [
+      "0x06da59bcccdc87f96970ae89753e9d640bb3c97b2620877f06e9673e487b3716",
+      "0xf246c9ed15463fd871c96e9da353ffd183b6ff31c0b1b940982c86d09f56d5e5"
+    ],
+    "paidStates": [
+      true,
+      true
+    ],
+    "shareUSDC": "0.001",
+    "grossContractShareValueUSDC": "0.002",
+    "netInterWalletUSDC": "0.001",
+    "firstPayerEqualsRecipient": true,
+    "ownerControlledDemoAccounts": true,
+    "walletDisconnectedReloadVerifiedPaidCount": 2,
+    "walletDisconnectedReloadVerifiedReceiptCount": 2
+  },
+  "gasSummary": {
+    "setupUSDC": "0.01616992",
+    "applicationFlowUSDC": "0.00646102",
+    "totalUSDC": "0.02263094",
+    "budgetUSDC": "0.10",
+    "remainingUSDC": "0.07736906",
+    "fundingPrincipalUSDC": "0.10",
+    "fundingPrincipalSeparate": true
+  }
 }

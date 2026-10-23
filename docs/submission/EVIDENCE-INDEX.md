@@ -1,67 +1,63 @@
-# Evidence index
+# Evidence index — 23 October 2026
 
-> **23 October 2026 update:** Arc Mainnet contract deployment is now verified. See [current mainnet status and evidence](../MAINNET-LIVE.md) for the exact source-pinned deployment, live application/receipt status, fees and remaining submission work. Deployment and wallet funding alone are not a through-application payment. The dated Testnet/preparation material below is retained as historical evidence; its statements about an undeployed or disabled mainnet describe that earlier checkpoint. No competition submission or eligibility acceptance is claimed.
+The current demonstration is **Arc Mainnet Bill 1, settled 2/2 with two verified receipts**. Publication, source correspondence, deterministic tests, canonical chain results, public-browser observations, media and competition acceptance are separate evidence states.
 
-**Updated 22 October 2026.** This index separates application publication, Studio source correspondence, tests, chain receipts, browser observations and private media. A documentation-only commit does not update the deployed app SHA.
+## Current public release
 
-## Current deployed application
-
-| Item | Record |
+| Item | Evidence |
 | --- | --- |
-| Application source commit | `4dae47f01bb78126e5c70621d87af0c9899cb9c6` |
-| Dedicated-host release | `20261021T192007Z-4dae47f` |
-| Public app | https://splitreceipt.axiqo.xyz/splitreceipt/ |
-| Latest completed public-wallet retest | [Bill 6](https://splitreceipt.axiqo.xyz/splitreceipt/?network=testnet&chainId=5042002&contract=0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26&bill=6) |
-| Exact commit CI | https://github.com/a252937166/splitreceipt/actions/runs/39660377061 |
-| Public delivery | Four static files, 652,054 bytes; independent public asset, server-release, HTTPS/TLS and redirects readback matched |
+| App | https://splitreceipt.axiqo.xyz/splitreceipt/ |
+| Public builder profile | https://github.com/a252937166; public API access verified 23 October, not an owner-identity attestation |
+| Completed mainnet bill | [Bill 1](https://splitreceipt.axiqo.xyz/splitreceipt/?network=mainnet&chainId=5042&contract=0x8522Ea5A413c8402182fF6998Bd7471bAC886142&bill=1) |
+| Application source | `00658175885a03f1fd49d61c56a2ce3ff2f86b82` |
+| Dedicated-host release | `20261023T083640Z-0065817` |
+| Exact-commit CI | [Successful checks/build](https://github.com/a252937166/splitreceipt/actions/runs/39923724591) |
+| Public delivery | Four sealed static files; all asset bytes, TLS, network query routes, redirects and remote release identity matched |
+| Release manifest SHA-256 | `6b4603779616056a410aad28b43c839b0692efdcfb46bedc9cf61afe398eadb9` |
+| Canonical source-map SHA-256 | `3fad7fb62471f78223245d5512f630ffcd1edc0ec2feedc57804cdc878ab75f3`; 143 files at the deployed application revision |
 
-GitHub Pages CI deployment and Dogyun publication are separate records. The dedicated domain is the primary demo; the old GitHub Pages hostname is historical.
+A later documentation/evidence commit is not a redeployed application. GitHub Pages is historical; its automatic deployment was removed from CI. The dedicated project domain is the current demo.
 
-## Source and deterministic verification
+## Mainnet contract and flow
 
-| Record | What it establishes | Limit |
-| --- | --- | --- |
-| [Provenance](../PROVENANCE.md) | Studio origin; dated archive/terminal/per-file correspondence; early local and recent Codex-prepared contributions | Mixed history is not exclusively Studio-authored; no organizer acceptance |
-| [17 October source readback](../../tests/evidence/studio-source-readback-2026-10-17.json) | 20/22 synchronized paths identical, two documented dev-host adaptations | Historical source archive |
-| [17 October UI readback](../../tests/evidence/studio-ui-source-readback-2026-10-17.json) | Six exact synchronized UI/helper paths | Historical UI archive |
-| 21 October light/forest ZIP | Six UI/design files, SHA-256 `b92cfe708d31acb756301b85eab742984ff50f0b5ab3830ec936ae4668181e14` | Earlier `003f005` release, not current full-source ZIP |
-| [21 October mainnet preparation](../../tests/evidence/mainnet-preparation-2026-10-21.json) | Actual Studio terminal export `28f93fdd46c74e23566a926daf4f639294249008d7f1237f43ebdae1aea43454`; 67 TypeScript/38 Solidity tests, 256 fuzz runs, build/isolation/unsigned generation | Dated phase; its no-wallet-test and unpublished flags describe that checkpoint |
-| Latest wallet refinement | Actual 11-file Studio hash readback plus identical sealed-input adoption; Studio/local typecheck, 76 TypeScript tests, build/isolation | Per-file source adoption, not a fresh full-source ZIP |
-| [Current public-flow summary](../../tests/evidence/public-wallet-flow-2026-10-22.json) | Latest source/CI, Bill 6 chain/UI and media metadata | Sanitized curated summary; no native wallet signature footage |
+[Deployment record](../../deployments/arc-mainnet.json), [current status](../MAINNET-LIVE.md) and [sanitized machine-readable flow](../../tests/evidence/mainnet-flow-2026-10-23.json).
 
-The current 76-test TypeScript count comes from observed 21 October Studio and independent local runs. The exact application-commit CI's test step also passed. The 38 Solidity tests and 256 fuzz runs were completed separately during preparation; chain-5042 cases execute locally, not on mainnet. Older 16-, 35- and 36-test counts remain dated history.
-
-## Bill 6 — current complete testnet example
-
-Chain 5042002; contract `0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26`. Title **Public wallet retest 2026-10-22**. Recipient/payer 1 `0x3dc8BD7393c65C632ec6395Ad6C7916A65662e74`; payer 2 `0xA944Fe45F10C61F94F8d6a17274673dd1FB51A7c`. Two shares of 0.001 test USDC, both paid.
-
-| Event | Explorer |
+| Evidence | Public link / result |
 | --- | --- |
-| Creation | https://explorer.testnet.arc.io/tx/0x9fc1c8409b65668fadbcc04ec3e5e1c099328293eabca58d13e1cfb30f8e40f4 |
-| Payment 1 | https://explorer.testnet.arc.io/tx/0x4ac7376f58da853c8e020db7a7a4b2b9545dcb41b44ec62da7a815160d875f4e |
-| Payment 2 | https://explorer.testnet.arc.io/tx/0x0a5bed3b9d6f33bce647cbce41b99212add66b47a9917ecac3dcb170a4f5a2fd |
+| Contract, Arc Mainnet 5042 | [`0x8522Ea5A413c8402182fF6998Bd7471bAC886142`](https://explorer.arc.io/address/0x8522Ea5A413c8402182fF6998Bd7471bAC886142) |
+| Reviewed runtime hash | `0x93454cc56d1f8531f7d506ff22ccbfeefe1b34913c0f688910ee2a20e7bfd18b` |
+| Deployment, block 27419618 | [`0x65f5a438a7a7e7dd068e53a7fd06e5af02f733dc25f4c250178425c1da00962f`](https://explorer.arc.io/tx/0x65f5a438a7a7e7dd068e53a7fd06e5af02f733dc25f4c250178425c1da00962f) |
+| Bill creation, block 27428463 | [`0x389acbe376e7adb426efbd66095dbea24b764b21f6a9c214874d14546473eee9`](https://explorer.arc.io/tx/0x389acbe376e7adb426efbd66095dbea24b764b21f6a9c214874d14546473eee9) |
+| Payment 1, block 27429239 | [`0x06da59bcccdc87f96970ae89753e9d640bb3c97b2620877f06e9673e487b3716`](https://explorer.arc.io/tx/0x06da59bcccdc87f96970ae89753e9d640bb3c97b2620877f06e9673e487b3716) |
+| Payment 2, block 27444837 | [`0xf246c9ed15463fd871c96e9da353ffd183b6ff31c0b1b940982c86d09f56d5e5`](https://explorer.arc.io/tx/0xf246c9ed15463fd871c96e9da353ffd183b6ff31c0b1b940982c86d09f56d5e5) |
+| Final contract state | Two payers, share 0.001 USDC, paid states `[true, true]` |
+| Distinct-wallet balance proof | Payer 2 loses 0.001 USDC plus Gas; recipient gains exactly 0.001 USDC |
+| Public read-only UI | After wallet disconnect/reload: Connect wallet, Settled, 2/2 paid, 2/2 receipts verified; both mainnet hashes match |
 
-Canonical chain readback checked the runtime, successful receipts, call data/value, block hashes, matching events and `[true, true]` paid states. Total gas: **0.007650575 test USDC**; principal: **0.002 test USDC**. The creation hash comes from chain/scenario evidence, not a fully visible creation-hash screenshot.
+All three app receipts were successful and canonical; call identity, exact value and events matched. Runtime identity was checked with final payment. Payer 1 equals the recipient, so the first share's net principal movement is zero. Gross app shares **0.002 USDC** and net inter-wallet movement **0.001 USDC** must not be conflated. The accounts are owner-controlled demonstration identities, not customers, independent users or revenue.
 
-The 22 October public UI showed settled 2/2 and both verified receipts. App Disconnect plus reload retained both in the same profile and showed Connect wallet. No new-profile/empty-cache claim is made. Historical Bills 3 and 5 also read back 2/2 on this release. The owner reported no security warning for creation and payment 2; payment 1's native signature and warning were not observed. Captured MetaMask listener/orphan-stream warnings remained.
+Gas: deployment/funding **0.01616992 USDC** plus app flow **0.00646102** = **0.02263094**, leaving **0.07736906** of the **0.10** cap. Funding principal **0.10 USDC** is separate. No more real transaction is needed for the completed technical demonstration.
 
-## Historical chain and release checkpoints
+## Studio, source and deterministic checks
 
-| Checkpoint | Evidence / boundary |
+| Record | What it establishes / limit |
 | --- | --- |
-| Testnet deployment | [Transaction](https://explorer.testnet.arc.io/tx/0x7808b47303974a4b69f8b306e1fff0bdfbb408b6cd26de53790187d77eccacac), block 67660831; unchanged Studio-origin contract, deployed by local test-only wallet after Studio policy limit |
-| Bill 2, 17 October | [Create proof](../../tests/evidence/browser-wallet-bill2-create.json), [final proof](../../tests/evidence/browser-wallet-bill2-final.json); local MetaMask flow plus helper-paid second share |
-| Bill 3, 18 October | Built-in demo; [create](https://explorer.testnet.arc.io/tx/0x0accd8568a0d9844bbd65228d21eb8431cfdb18957c5f6a87c3c1744338707d7), [pay 1](https://explorer.testnet.arc.io/tx/0xc0d0e348b75178251ac1e71a6d8d3a7831267aeba447ee4dd81c20eb3dfec6f4), [pay 2](https://explorer.testnet.arc.io/tx/0xf79dc80600bd05be25fb904d845f126d4d95b59dad94ad47c164c38a35b9e9c9); 0.002 test-USDC principal, 0.007712475 gas; second share used helper, not MetaMask |
-| Bill 4 | [Create](https://explorer.testnet.arc.io/tx/0x0834d17d37afc7fa267bc84648e34ebdf973433b72597db5e64a75018b20d826); owner-reported no-warning create observation, not the later complete Bill 6 flow |
-| Initial white/blue hosting, 18 October | `20261018T080938Z-dd5013b`; 4 files/608,328 bytes; manifest SHA-256 `21ff2a604925a5e6b09f8cd623dca6b3848147ab67340eaae0387c4853c35215` |
-| Earlier light/forest hosting, 21 October | `003f005b4030f664dfb95f9ccc79205f14e92b27`, `20261021T071846Z-003f005`; [historical CI](https://github.com/a252937166/splitreceipt/actions/runs/39561037667), 36 TypeScript tests; superseded application revision |
+| [Studio project](https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62) | Actual origin/workspace URL; independent reviewer access unconfirmed |
+| [Provenance](../PROVENANCE.md) | Original Studio source, dated UI work, earlier local refinements and recent externally prepared/manual-terminal inputs; no exclusive Studio-AI claim |
+| 23 October actual Studio/local verification | 80 TypeScript tests, typecheck, build and isolated dependencies passed; deployed 143-file map matched exact adopted source |
+| Exact-commit CI above | Check/build success for `00658175885a03f1fd49d61c56a2ce3ff2f86b82`; not a claim that CI deployed the dedicated site |
+| [21 October contract preparation](../../tests/evidence/mainnet-preparation-2026-10-21.json) | Separate 38 Solidity tests / 256 fuzz runs, local-EVM cases; not newly run for this document change |
+| [17 October source readback](../../tests/evidence/studio-source-readback-2026-10-17.json) | Historical 20/22 exact synchronized paths, two disclosed sandbox adaptations |
+| [17 October UI readback](../../tests/evidence/studio-ui-source-readback-2026-10-17.json) | Historical exact UI/helper synchronization, not current whole-source archive |
 
-## Media
+Recent pin/docs inputs were actually applied in the official Studio manual terminal and checked by hashes; the inputs were externally prepared. Deployment used the owner's local CLI. These facts do not resolve the organizer's outside-Studio exclusion. No new complete Studio ZIP or Studio-AI generation is inferred from the later manual-terminal work.
 
-Latest private media: `SplitReceipt-Studio-public-wallet-release-testnet-sampled-20261022.mp4`, SHA-256 `144b70d5cb3d072a9710ce2de0f6ee9dd0e63ddfe6487c32e14b9142ae4601a4`. It is **63 seconds, 1920×1080, H.264, 30fps, 1,890 frames, silent**, assembled from **21 milestone screenshots**, captured 21 October 19:14:10.902–22 October 06:36:12.928 UTC. Waits are compressed. Original/decoded sample review, full decode, timing, privacy and immutability QA passed.
+## Historical Testnet material
 
-This is noncontinuous supporting public-page process material, not the final competition video. It contains no Studio editing or native wallet screens, proves no new Studio-AI generation and has no public URL. The earlier 54-second/18-screenshot record is separate historical material. See [LOCAL-ASSETS.md](LOCAL-ASSETS.md) and [VIDEO-SCRIPT.md](VIDEO-SCRIPT.md).
+[Bill 6 public-wallet evidence](../../tests/evidence/public-wallet-flow-2026-10-22.json) remains a separate complete Testnet demonstration on chain **5042002**, not evidence of mainnet USDC. Historical source `4dae47f01bb78126e5c70621d87af0c9899cb9c6`, release `20261021T192007Z-4dae47f`, its 76-test checkpoint and older private media are superseded for the current app release. The built-in Demo receipt remains historical Testnet Bill 3.
 
-## Rules and remaining evidence
+## Media and submission
 
-The [official page](https://dorahacks.io/hackathon/arc-microgrants-2/detail) was checked live on 22 October: deadline displayed **2026-11-01 23:59 (UTC−4)**; Studio development and mainnet app/contract/USDC movement required. Public builder profile is required; a promotional social post was not explicitly required on the inspected details page. Mixed-provenance acceptance, Studio reviewer access, actual form schema and owner confirmations remain unresolved. The Organizer Disclaimer was canceled, not accepted. Mainnet evidence and a public Studio/mainnet walkthrough are absent. See [READINESS.md](READINESS.md).
+Public video URL: **PENDING_PUBLIC_VIDEO**. The private two-of-two Studio/browser evidence edit has completed QA: **175.266667 seconds, 1920×1080, H.264, 30 fps, silent**; SHA-256 `dcf190e1ac38fb50575b9e06a4be97ff3da9c8776785393b1d16c23923e6c0c9`. It remains unpublished. The earlier partial one-of-two mainnet clip is historical; it is not the final settled proof or a public video. Captures use sampled milestones with compressed waits. Native wallet final confirmations were not directly recorded. No public upload or reviewer playback is claimed.
+
+The [official rules](https://dorahacks.io/hackathon/arc-microgrants-2/detail) were rechecked on 23 October. Displayed deadline: **2026-11-01 23:59 (UTC−4)**. Studio-built app/contracts, mainnet USDC, Studio URL, repo, builder profile and a Studio/mainnet walkthrough are required. Mainnet technical gates now have evidence. The public video, Studio reviewer access, actual form/disclosures/agreements and mixed-provenance eligibility remain open. No form submission or organizer acceptance is claimed. See [current field copy](FORM-FIELDS.md), [judge guide](JUDGE-GUIDE.md) and [readiness](READINESS.md).
