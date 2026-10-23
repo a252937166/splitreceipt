@@ -1,275 +1,180 @@
-import { useEffect, useState } from 'react'
-import { FileText, ReceiptText, ShieldCheck } from 'lucide-react'
-import { WalletButton } from './wallet-ui'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { appEpochs } from './epoch'
+import { AlertTriangle, FilePlus2, Receipt, Search } from 'lucide-react'
 import CreateBill from './components/CreateBill'
 import BillDetails from './components/BillDetails'
-import WalletChecks from './components/WalletChecks'
-import { activeNetwork } from './activeNetwork'
-import { isCurrentLocationContext, MAINNET_WRITES_ENABLED } from './networkContext'
-import { buildNetworkNavigationUrl } from './networkNavigation'
+import OpenBill from './components/OpenBill'
+import ContextProblemView from './components/ContextProblemView'
+import WalletMenu from './wallet/WalletMenu'
+import { WalletSessionProvider } from './wallet/WalletSession'
+import { NETWORKS, TESTNET, buildContextSearch, parsePageContext, type Hash32, type PageContext } from './networks'
 
-type View =
-  | { kind: 'create' }
-  | { kind: 'details'; billId: bigint }
-  | { kind: 'checks' }
+type Tab = 'create' | 'open'
 
-const DEMO_BILL_ID = 3n
-
-function getBillIdFromUrl(): bigint | null {
-  try {
-    const params = new URLSearchParams(window.location.search)
-    const raw = params.get('bill')
-    if (!raw) return null
-    const n = BigInt(raw)
-    return n > 0n ? n : null
-  } catch {
-    return null
-  }
+function readEnvAddress(): string | undefined {
+  const raw = import.meta.env.VITE_SPLIT_RECEIPT_ADDRESS as string | undefined
+  return raw && raw.length > 0 ? raw : undefined
 }
-
-function getViewFromUrl(): View {
-  const id = getBillIdFromUrl()
-  if (id) return { kind: 'details', billId: id }
-  const hash = window.location.hash
-  if (hash === '#checks') return { kind: 'checks' }
-  return { kind: 'create' }
-}
-
-function setUrlBillId(billId: bigint) {
-  const url = new URL(window.location.href)
-  url.searchParams.set('network', activeNetwork.key)
-  url.searchParams.set('chainId', String(activeNetwork.chainId))
-  if (activeNetwork.contract) url.searchParams.set('contract', activeNetwork.contract.toLowerCase())
-  else url.searchParams.delete('contract')
-  url.searchParams.set('bill', billId.toString())
-  url.searchParams.delete('receipts')
-  url.hash = ''
-  window.history.pushState({}, '', url.toString())
-}
-
-function clearUrl() {
-  const url = new URL(window.location.href)
-  url.searchParams.delete('bill')
-  url.searchParams.delete('receipts')
-  url.hash = ''
-  window.history.pushState({}, '', url.toString())
-}
-
-function setUrlChecks() {
-  const url = new URL(window.location.href)
-  url.searchParams.delete('bill')
-  url.searchParams.delete('receipts')
-  url.hash = 'checks'
-  window.history.pushState({}, '', url.toString())
-}
-
-const NAV_ITEMS = [
-  { kind: 'create' as const, label: 'Create bill',    Icon: FileText },
-  { kind: 'demo'   as const, label: 'Demo receipt',   Icon: ReceiptText },
-  { kind: 'checks' as const, label: 'Wallet checks',  Icon: ShieldCheck },
-]
 
 export default function App() {
-  const [view, setView] = useState<View>(getViewFromUrl)
+  const [search, setSearch] = useState(() => window.location.search)
+  const latest = useRef(search)
 
   useEffect(() => {
-    const handler = () => {
-      if (!isCurrentLocationContext(activeNetwork, window.location.href)) { window.location.reload(); return }
-      setView(getViewFromUrl())
+    const onPop = () => {
+      // Every real navigation bumps the page epoch so pending requests from the old page can never commit.
+      if (window.location.search !== latest.current) appEpochs.page.bump()
+      latest.current = window.location.search
+      setSearch(window.location.search)
     }
-    window.addEventListener('popstate', handler)
-    return () => window.removeEventListener('popstate', handler)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
   }, [])
 
-  const handleBillCreated = (billId: bigint) => {
-    if (!isCurrentLocationContext(activeNetwork, window.location.href)) return
-    setUrlBillId(billId)
-    setView({ kind: 'details', billId })
-  }
+  const parsed = useMemo(() => parsePageContext(search, readEnvAddress()), [search])
+  const go = useCallback((next: string) => {
+    if (next !== latest.current) appEpochs.page.bump()
+    latest.current = next
+    window.history.pushState({}, '', `${window.location.pathname}${next}`)
+    setSearch(next)
+    window.scrollTo({ top: 0 })
+  }, [])
 
-  const goCreate = () => { clearUrl(); setView({ kind: 'create' }) }
-  const goDemo = () => {
-    if (!activeNetwork.isTestnet || activeNetwork.configError) {
-      const url = new URL(buildNetworkNavigationUrl(window.location.href, 'testnet'))
-      url.searchParams.set('bill', DEMO_BILL_ID.toString())
-      window.location.assign(url.toString())
-      return
-    }
-    setUrlBillId(DEMO_BILL_ID); setView({ kind: 'details', billId: DEMO_BILL_ID })
-  }
-  const goChecks = () => { setUrlChecks(); setView({ kind: 'checks' }) }
-  const goBack   = () => { clearUrl(); setView({ kind: 'create' }) }
+  // The wallet session follows the page network; an invalid link falls back to Testnet.
+  return (
+    <WalletSessionProvider network={parsed.ok ? parsed.context.network : TESTNET}>
+      <Shell parsed={parsed} go={go} />
+    </WalletSessionProvider>
+  )
+}
 
-  function isActive(kind: 'create' | 'demo' | 'checks') {
-    if (kind === 'create') return view.kind === 'create'
-    if (kind === 'demo')   return activeNetwork.isTestnet && view.kind === 'details' && (view as { kind: 'details'; billId: bigint }).billId === DEMO_BILL_ID
-    return view.kind === 'checks'
-  }
+type Parsed = ReturnType<typeof parsePageContext>
 
-  const navAction = { create: goCreate, demo: goDemo, checks: goChecks }
+function Shell({ parsed, go }: { parsed: Parsed; go: (next: string) => void }) {
+  const [tab, setTab] = useState<Tab>('create')
+
+  const openBill = useCallback(
+    (context: PageContext, billId: bigint, created?: Hash32 | null) => {
+      go(buildContextSearch(context, billId, { created }))
+    },
+    [go],
+  )
+
+  const goCreate = useCallback(() => {
+    setTab('create')
+    if (parsed.ok) go(buildContextSearch(parsed.context, null))
+    else go('')
+  }, [go, parsed])
+
+  const goDemo = useCallback(() => {
+    if (parsed.ok) openBill(parsed.context, parsed.context.network.key === 'mainnet' ? 1n : 3n)
+  }, [openBill, parsed])
+
+  const context = parsed.ok ? parsed.context : null
+  const viewingBill = context?.billId !== null && context?.billId !== undefined
 
   return (
-    /* Root: full-height flex row on desktop */
-    <div className="min-h-dvh flex flex-col" style={{ background: 'var(--canvas)' }}>
-
-      {/* ── Testnet notice strip ───────────────────────────────────────── */}
-      <div
-        className="flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium z-50"
-        style={{ background: 'var(--warn-bg)', borderBottom: '1px solid var(--warn-border)', color: 'var(--warn-ink)' }}
-      >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <circle cx="8" cy="8" r="7.5" stroke="currentColor"/>
-          <path d="M8 5v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          <circle cx="8" cy="11.5" r="0.75" fill="currentColor"/>
-        </svg>
-        <span>{activeNetwork.isTestnet ? 'Arc Testnet · Test USDC only · No real funds' : activeNetwork.mainnetWritesEnabled ? 'Arc Mainnet · Real USDC · Wallet confirmation required' : 'Arc Mainnet · Real USDC · Transactions disabled'}</span>
-        <label className="sr-only" htmlFor="app-network">App network</label>
-        <select
-          id="app-network"
-          value={activeNetwork.key}
-          onChange={event => window.location.assign(buildNetworkNavigationUrl(window.location.href, event.target.value as 'testnet' | 'mainnet'))}
-          className="rounded px-2 py-1 text-xs"
-          style={{ background: 'var(--surface)', color: 'var(--ink)', border: '1px solid var(--border)', minHeight: '36px', maxWidth: '160px' }}
-          aria-label="App network"
-        >
-          <option value="testnet">Arc Testnet</option>
-          <option value="mainnet">{MAINNET_WRITES_ENABLED ? 'Arc Mainnet' : 'Arc Mainnet · preview'}</option>
-        </select>
-      </div>
-
-      {/* ── Outer shell: rail + content ────────────────────────────────── */}
-      <div className="flex flex-1 min-h-0">
-
-        {/* ── Left navigation rail (desktop only ≥768px) ────────────── */}
-        <aside
-          className="hidden md:flex flex-col shrink-0"
-          style={{
-            width: '208px',
-            background: 'var(--rail-bg)',
-            borderRight: '1px solid rgba(255,255,255,0.06)',
-            position: 'sticky',
-            top: 0,
-            height: '100vh',
-            overflowY: 'auto',
-          }}
-          aria-label="Application navigation"
-        >
-          {/* Brand */}
+    <div className="min-h-dvh" style={{ background: 'var(--canvas)' }}>
+      <header style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+        {/* Two rows below 640px (brand + wallet, then the network choice); one row from 640px. */}
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
           <button
+            type="button"
             onClick={goCreate}
-            className="flex items-center gap-2.5 px-5 pt-6 pb-5"
-            style={{ color: '#FFFFFF', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+            className="order-1 flex min-w-0 items-center gap-2 border-0 bg-transparent p-0 touch-target"
             aria-label="SplitReceipt home"
           >
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-              <rect width="28" height="28" rx="7" fill="#176B57"/>
-              <path d="M8 8h12M8 12h12M8 16h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-              <path d="M18 16l3 4" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-            </svg>
-            <span style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.01em' }}>SplitReceipt</span>
+            <Receipt size={22} aria-hidden="true" style={{ color: 'var(--primary)', flexShrink: 0 }} />
+            <span className="sr-heading-md" style={{ color: 'var(--ink)' }}>SplitReceipt</span>
           </button>
-
-          {/* Nav items */}
-          <nav className="flex-1 px-3 space-y-1" aria-label="Main navigation">
-            {NAV_ITEMS.map(({ kind, label, Icon }) => (
-              <button
-                key={kind}
-                type="button"
-                className={`rail-nav-link${isActive(kind) ? ' rail-nav-link--active' : ''}`}
-                onClick={navAction[kind]}
-                aria-current={isActive(kind) ? 'page' : undefined}
-              >
-                <Icon size={16} aria-hidden="true" />
-                {label}
-              </button>
-            ))}
-          </nav>
-
-          {/* Bottom: wallet */}
-          <div className="px-3 pb-6 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-            <div className="flex items-center gap-2 mb-2">
-              <span
-                className="badge-network"
-                style={{ background: 'rgba(20,92,68,0.4)', border: '1px solid rgba(168,213,187,0.3)', color: '#A8D5BB', fontSize: '11px' }}
-              >
-                {activeNetwork.name}
-              </span>
-            </div>
-            <WalletButton />
+          <div className="order-2 ml-auto min-w-0 sm:order-3 sm:ml-0">
+            <WalletMenu />
           </div>
-        </aside>
-
-        {/* ── Right: mobile header + content ─────────────────────────── */}
-        <div className="flex flex-col flex-1 min-w-0">
-
-          {/* Mobile header (hidden ≥768px) */}
-          <header
-            className="md:hidden sticky top-0 z-40"
-            style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
+          <div
+            className="order-3 flex w-full min-w-0 items-center gap-2 sm:order-2 sm:ml-auto sm:w-auto"
+            role="group"
+            aria-label="Network"
           >
-            <div className="flex items-center gap-3 px-4 h-14">
-              {/* Brand */}
-              <button
-                onClick={goCreate}
-                className="flex shrink-0 items-center gap-2"
-                style={{ color: 'var(--ink)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '15px' }}
-                aria-label="SplitReceipt home"
-              >
-                <svg width="24" height="24" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-                  <rect width="28" height="28" rx="7" fill="#176B57"/>
-                  <path d="M8 8h12M8 12h12M8 16h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-                  <path d="M18 16l3 4" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-                </svg>
-                SplitReceipt
-              </button>
-              {/* Wallet pill */}
-              <div className="ml-auto shrink-0">
-                <WalletButton />
-              </div>
-            </div>
-
-            {/* Mobile nav tabs */}
-            <nav
-              className="flex items-center gap-1 px-3 pb-2 overflow-x-auto"
-              style={{ scrollbarWidth: 'none' }}
-              aria-label="Main navigation"
-            >
-              {NAV_ITEMS.map(({ kind, label, Icon }) => (
-                <button
-                  key={kind}
-                  type="button"
-                  className={`mobile-nav-link${isActive(kind) ? ' mobile-nav-link--active' : ''}`}
-                  onClick={navAction[kind]}
-                  aria-current={isActive(kind) ? 'page' : undefined}
+            {NETWORKS.map((n) => {
+              const active = context?.network.key === n.key
+              return (
+                <a
+                  key={n.key}
+                  href={`${window.location.pathname}?network=${n.key}`}
+                  aria-current={active ? 'page' : undefined}
+                  className={`${active ? 'badge-network' : 'btn-ghost'} touch-target min-w-0 flex-1 justify-center sm:flex-none`}
+                  style={{ textDecoration: 'none' }}
+                  title={`Open ${n.label} (clears the current bill and contract)`}
                 >
-                  <Icon size={14} aria-hidden="true" />
-                  {label}
-                </button>
-              ))}
-            </nav>
-          </header>
-
-          {activeNetwork.configError && (
-            <div className="alert-warn mx-4 mt-6" role="alert">
-              <span className="flex-1">This link does not match the configured network deployment. Transactions and receipt queries are disabled.</span>
-              <a className="btn-ghost" href={buildNetworkNavigationUrl(window.location.href, 'testnet')}>Return to Arc Testnet</a>
-            </div>
-          )}
-
-          {/* Content */}
-          <main className="flex-1 px-4 md:px-8 py-8 md:py-10 max-w-[1120px] w-full mx-auto">
-            {view.kind === 'create' && (
-              <CreateBill key={`${activeNetwork.contextKey}:create`} onBillCreated={handleBillCreated} onViewDemo={goDemo} />
-            )}
-            {view.kind === 'details' && (
-              <BillDetails key={`${activeNetwork.contextKey}:${view.billId}`} billId={view.billId} onBack={goBack} />
-            )}
-            {view.kind === 'checks' && (
-              <WalletChecks key={`${activeNetwork.contextKey}:checks`} onBack={goCreate} />
-            )}
-          </main>
+                  {n.label}
+                </a>
+              )
+            })}
+          </div>
         </div>
-      </div>
+        <nav aria-label="Primary" className="mx-auto flex w-full max-w-5xl items-center gap-1 px-4 pb-2">
+          <button
+            type="button"
+            className={`mobile-nav-link ${!viewingBill && tab === 'create' ? 'mobile-nav-link--active' : ''}`}
+            onClick={goCreate}
+          >
+            <FilePlus2 size={15} aria-hidden="true" /> Create
+          </button>
+          <button
+            type="button"
+            className={`mobile-nav-link ${!viewingBill && tab === 'open' ? 'mobile-nav-link--active' : ''}`}
+            onClick={() => {
+              setTab('open')
+              if (parsed.ok && viewingBill) go(buildContextSearch(parsed.context, null))
+            }}
+            disabled={!parsed.ok}
+          >
+            <Search size={15} aria-hidden="true" /> Open bill
+          </button>
+          <button type="button" className="mobile-nav-link" onClick={goDemo} disabled={!parsed.ok}>
+            <Receipt size={15} aria-hidden="true" /> Demo receipt
+          </button>
+        </nav>
+      </header>
+
+      {context?.network.realFunds && (
+        <div className="mx-auto w-full max-w-5xl px-4 pt-4">
+          <div className="alert-warn" role="note">
+            <AlertTriangle size={16} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+            <span>
+              <strong>{context.network.label} uses real USDC</strong> for both payments and network fees, and
+              transactions cannot be undone. Check the network, contract and amount in your wallet before you sign.
+              Each request carries a cap on the price per unit of gas; that is not a limit on the total fee.
+            </span>
+          </div>
+        </div>
+      )}
+
+      <main className="mx-auto w-full max-w-5xl px-4 py-8">
+        {!parsed.ok && <ContextProblemView problem={parsed.problem} />}
+        {context && context.billId !== null && (
+          <BillDetails
+            key={`${context.deployment.address}:${context.billId}`}
+            context={context}
+            billId={context.billId}
+            onCreateAnother={goCreate}
+          />
+        )}
+        {context && context.billId === null && tab === 'create' && (
+          <CreateBill context={context} onOpenBill={openBill} />
+        )}
+        {context && context.billId === null && tab === 'open' && (
+          <OpenBill context={context} onOpenBill={openBill} />
+        )}
+      </main>
+
+      <footer className="mx-auto w-full max-w-5xl px-4 pb-10 sr-meta" style={{ color: 'var(--subdued)' }}>
+        {context
+          ? `${context.network.realFunds ? 'Arc Mainnet uses real USDC.' : 'Arc Testnet uses free test USDC.'} `
+          : 'No network or contract was validated for this link, so no network-specific information is shown. '}
+        Bill titles, addresses, amounts and payments are public onchain, so keep personal details out of titles.
+        This app never asks for a private key or recovery phrase.
+      </footer>
     </div>
   )
 }

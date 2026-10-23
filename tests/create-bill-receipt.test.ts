@@ -1,85 +1,166 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { describe, it } from 'node:test'
+import { verifyCreateBillTransaction } from '../src/createBillReceipt.ts'
 import {
-  applyCreationReplacement,
-  confirmBillCreation,
-  type BillCreatedLog,
-  type CreateBillSubmission,
-} from '../src/createBillReceipt.ts'
-import type { ReceiptHash } from '../src/receiptHistory.ts'
+  BLOCK, BLOCK_HASH, CHAIN, CONTRACT, CREATOR, INTENDED, PAYER_A, PAYER_B, RECIPIENT, SHARE, TX_HASH,
+  addr, billCreatedLog, createCalldata, createClient, hash, type CreateScenario,
+} from './fixtures.ts'
 
-const contract = '0x1111111111111111111111111111111111111111'
-const creator = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-const recipient = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-const payer = '0xcccccccccccccccccccccccccccccccccccccccc'
-const hash = (id: number) => `0x${id.toString(16).padStart(64, '0')}` as ReceiptHash
-const request: CreateBillSubmission = {
-  chainId: 5042002, contract, creator, recipient,
-  title: 'Shared dinner', payers: [creator, payer], share: 1_000_000n, hash: hash(1),
+const run = (s: CreateScenario = {}, over: { expectedCreator?: `0x${string}` | null; intended?: typeof INTENDED } = {}) => {
+  const { client, calls } = createClient(s)
+  return verifyCreateBillTransaction(client, {
+    chainId: CHAIN,
+    contract: CONTRACT,
+    hash: TX_HASH,
+    intended: over.intended ?? INTENDED,
+    expectedCreator: over.expectedCreator,
+  }).then((r) => ({ r, calls }))
 }
-const context = { receiptChainId: 5042002, connectedChainId: 5042002, connectedAddress: creator }
-const log: BillCreatedLog = {
-  address: contract,
-  args: { billId: 9n, recipient, title: request.title, share: request.share, payers: request.payers },
-}
-const receipt = { status: 'success' as const, transactionHash: hash(1), logs: [log] }
 
-test('a speedup is bound to the original request and confirms only the final mined hash', () => {
-  const spedUp = applyCreationReplacement(request, { reason: 'repriced', replacedHash: hash(1), minedHash: hash(2) })
-  assert.equal(spedUp.hash, hash(1))
-  assert.equal(spedUp.minedHash, hash(2))
-  assert.deepEqual(confirmBillCreation(spedUp, { ...receipt, transactionHash: hash(2) }, context), {
-    kind: 'confirmed', billId: 9n, transactionHash: hash(2),
+describe('verifyCreateBillTransaction', () => {
+  it('accepts a canonical create and reports tx.from as creator', async () => {
+    const { r, calls } = await run()
+    assert.equal(r.ok, true)
+    if (!r.ok) return
+    assert.equal(r.billId, 7n)
+    assert.equal(r.creator, CREATOR.toLowerCase())
+    assert.notEqual(r.creator, RECIPIENT.toLowerCase())
+    assert.equal(r.blockNumber, BLOCK)
+    assert.equal(r.blockHash, BLOCK_HASH)
+    assert.equal(calls.readBlock, BLOCK, 'bill state is read at the creating block')
   })
-  assert.equal(confirmBillCreation(spedUp, receipt, context).kind, 'stale')
-  // An old asynchronous callback cannot rewrite a different request's expected hash.
-  const nextRequest = { ...request, hash: hash(3) }
-  assert.equal(applyCreationReplacement(nextRequest, { reason: 'repriced', replacedHash: hash(1), minedHash: hash(2) }), nextRequest)
-})
 
-test('mined cancellation, generic replacement, revert, or a snapshot without a wallet-returned hash never creates a bill', () => {
-  for (const reason of ['cancelled', 'replaced'] as const) {
-    const replaced = applyCreationReplacement(request, { reason, replacedHash: hash(1), minedHash: hash(2) })
-    assert.equal(confirmBillCreation(replaced, { ...receipt, transactionHash: hash(2) }, context).kind, reason)
-    assert.equal(confirmBillCreation(replaced, { ...receipt, transactionHash: hash(2), logs: [] }, context).kind, reason)
+  it('creator comes from tx.from, never from an event field', async () => {
+    const a = await run({ from: addr(0x99) })
+    assert.equal(a.r.ok && a.r.creator, addr(0x99))
+  })
+
+  it('rejects a different connected account', async () => {
+    const { r } = await run({}, { expectedCreator: PAYER_A })
+    assert.equal(r.ok, false)
+  })
+
+  it('accepts the matching connected account case-insensitively', async () => {
+    const { r } = await run({}, { expectedCreator: CREATOR.toUpperCase().replace('0X', '0x') as `0x${string}` })
+    assert.equal(r.ok, true)
+  })
+
+  it('rejects calldata that differs from the intended bill', async () => {
+    const other = { ...INTENDED, title: 'Different title' }
+    const { r } = await run({ input: createCalldata(other), logs: [billCreatedLog(7n, other)], stored: { ...other, paid: [false, false] } })
+    assert.equal(r.ok, false)
+    if (!r.ok) assert.match(r.reason, /does not match/)
+  })
+
+  it('rejects payers in a different order', async () => {
+    const swapped = { ...INTENDED, payers: [PAYER_B, PAYER_A] }
+    const { r } = await run({ input: createCalldata(swapped), logs: [billCreatedLog(7n, swapped)], stored: { ...swapped, paid: [false, false] } })
+    assert.equal(r.ok, false)
+  })
+
+  it('rejects a different share', async () => {
+    const other = { ...INTENDED, share: SHARE + 1n }
+    const { r } = await run({ input: createCalldata(other), logs: [billCreatedLog(7n, other)], stored: { ...other, paid: [false, false] } })
+    assert.equal(r.ok, false)
+  })
+
+  it('rejects a BillCreated event that disagrees with the intent', async () => {
+    const other = { ...INTENDED, recipient: addr(0xdead) }
+    const { r } = await run({ logs: [billCreatedLog(7n, other)] })
+    assert.equal(r.ok, false)
+  })
+
+  it('rejects when no BillCreated event exists', async () => {
+    const { r } = await run({ logs: [] })
+    assert.equal(r.ok, false)
+  })
+
+  it('rejects two BillCreated events', async () => {
+    const { r } = await run({ logs: [billCreatedLog(7n), billCreatedLog(8n)] })
+    assert.equal(r.ok, false)
+  })
+
+  it('ignores events from another contract', async () => {
+    const { r } = await run({ logs: [billCreatedLog(7n, INTENDED, { address: addr(0xbad) })] })
+    assert.equal(r.ok, false)
+  })
+
+  it('rejects an event whose block hash is not canonical', async () => {
+    const { r } = await run({ logs: [billCreatedLog(7n, INTENDED, { blockHash: hash(0xbad) })] })
+    assert.equal(r.ok, false)
+  })
+
+  it('rejects a call to a different contract', async () => {
+    const { r } = await run({ to: addr(0xbad) })
+    assert.equal(r.ok, false)
+  })
+
+  it('rejects value attached to createBill', async () => {
+    const { r } = await run({ value: 1n })
+    assert.equal(r.ok, false)
+  })
+
+  it('rejects a reverted transaction', async () => {
+    const { r } = await run({ status: 'reverted' })
+    assert.equal(r.ok, false)
+    if (!r.ok) assert.equal(r.transient, false)
+  })
+
+  it('rejects a receipt whose block is not canonical', async () => {
+    const { r } = await run({ canonicalBlockHash: hash(0xfeed) })
+    assert.equal(r.ok, false)
+  })
+
+  it('rejects a transaction whose block hash differs from the receipt', async () => {
+    const { r } = await run({ txBlockHash: hash(0xfeed) })
+    assert.equal(r.ok, false)
+  })
+
+  it('rejects a receipt beyond the chain head', async () => {
+    const { r } = await run({ head: BLOCK - 1n })
+    assert.equal(r.ok, false)
+    if (!r.ok) assert.equal(r.transient, true)
+  })
+
+  it('rejects the wrong live chain id', async () => {
+    const { r } = await run({ chainId: 1 })
+    assert.equal(r.ok, false)
+  })
+
+  it('treats a missing receipt as transient (not mined yet)', async () => {
+    const { r } = await run({ receiptMissing: true })
+    assert.equal(r.ok, false)
+    if (!r.ok) assert.equal(r.transient, true)
+  })
+
+  for (const failure of ['receipt', 'tx', 'block', 'read', 'chain'] as const) {
+    it(`reports an RPC ${failure} failure as transient, not as an invalid bill`, async () => {
+      const { r } = await run({ rpcFailure: failure })
+      assert.equal(r.ok, false)
+      if (!r.ok) assert.equal(r.transient, true)
+    })
   }
-  assert.equal(confirmBillCreation(request, { ...receipt, status: 'reverted' }, context).kind, 'reverted')
-  assert.equal(confirmBillCreation({ ...request, hash: undefined }, receipt, context).kind, 'stale')
-  assert.equal(confirmBillCreation(request, { ...receipt, logs: [] }, context).kind, 'missing-event')
-})
 
-test('every captured event field and the contract must match, including payer order and a nonremoved valid bill id', () => {
-  const mismatches: BillCreatedLog[] = [
-    { ...log, address: recipient },
-    { ...log, removed: true },
-    { ...log, args: { ...log.args, billId: 0n } },
-    { ...log, args: { ...log.args, recipient: payer } },
-    { ...log, args: { ...log.args, title: 'Other dinner' } },
-    { ...log, args: { ...log.args, share: 2_000_000n } },
-    { ...log, args: { ...log.args, payers: [payer, creator] } },
-    { ...log, args: { ...log.args, payers: [creator] } },
-  ]
-  for (const mismatch of mismatches) {
-    assert.equal(confirmBillCreation(request, { ...receipt, logs: [mismatch] }, context).kind, 'missing-event')
-  }
-  assert.equal(confirmBillCreation(request, {
-    ...receipt,
-    logs: [{ ...log, address: contract.toUpperCase(), args: { ...log.args, recipient: recipient.toUpperCase(), payers: request.payers.map(p => p.toUpperCase()) } }],
-  }, context).kind, 'confirmed')
-})
+  it('rejects stored state that differs from the intent', async () => {
+    const { r } = await run({ stored: { ...INTENDED, recipient: addr(0x77), paid: [false, false] } })
+    assert.equal(r.ok, false)
+  })
 
-test('ambiguous bill ids are rejected rather than selecting the first matching event', () => {
-  assert.equal(confirmBillCreation(request, {
-    ...receipt, logs: [log, { ...log, args: { ...log.args, billId: 10n } }],
-  }, context).kind, 'ambiguous-event')
-  // A repeated copy of the same physical event still identifies one unique bill.
-  assert.equal(confirmBillCreation(request, { ...receipt, logs: [log, log] }, context).kind, 'confirmed')
-})
+  it('rejects a new bill that already shows a paid share (getBill()[4])', async () => {
+    const { r } = await run({ stored: { ...INTENDED, paid: [true, false] } })
+    assert.equal(r.ok, false)
+  })
 
-test('wallet or chain changes during confirmation cannot redirect another wallet to the earlier request', () => {
-  assert.equal(confirmBillCreation(request, receipt, { ...context, connectedAddress: payer }).kind, 'wrong-wallet')
-  assert.equal(confirmBillCreation(request, receipt, { ...context, connectedAddress: undefined }).kind, 'wrong-wallet')
-  assert.equal(confirmBillCreation(request, receipt, { ...context, connectedChainId: 5042 }).kind, 'wrong-chain')
-  assert.equal(confirmBillCreation(request, receipt, { ...context, receiptChainId: 5042 }).kind, 'wrong-chain')
-  assert.equal(confirmBillCreation(request, receipt, context).kind, 'confirmed')
+  it('rejects a malformed hash before any RPC', async () => {
+    const { client } = createClient()
+    const r = await verifyCreateBillTransaction(client, {
+      chainId: CHAIN, contract: CONTRACT, hash: '0x12' as never, intended: INTENDED,
+    })
+    assert.equal(r.ok, false)
+  })
+
+  it('rejects calldata for a different function', async () => {
+    const { r } = await run({ input: '0xdeadbeef' })
+    assert.equal(r.ok, false)
+  })
 })

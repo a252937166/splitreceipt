@@ -39,3 +39,7 @@ The footer's owner-signature policy is not evidence that a native signature was 
 The current 63-second file is supporting testnet process material, not the final eligible walkthrough. Required Studio-build/mainnet scenes, truthful mixed-source disclosure, a public upload and reviewer playback remain unresolved. The official details page specifies no continuous-recording or duration rule, but the real form has not been inspected. See [VIDEO-SCRIPT.md](VIDEO-SCRIPT.md) and [READINESS.md](READINESS.md).
 
 Publishing a reviewed clip, verifying anonymous playback and submitting its URL are separate actions. This inventory performs none of them and does not authorize mainnet or paid work.
+
+## 23 October 2026 status note
+
+A final film with real native continuous Studio and product footage, English narration and captions is being prepared. It is not listed above because it is not a finished retained asset, and **no public video link exists**. The 63-second sampled edit listed here and the other silent or sampled private edits are historical only. The independent operator reports native continuous recordings (phases 7 and 8) of the 23 October Studio Preview session (create form and wallet chooser, no wallet connection or transaction); they are raw material that this inventory has not reviewed, not the final film, and not uploaded. Nothing in this inventory was uploaded, and no new mainnet transaction or deployment is made for the recording.

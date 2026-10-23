@@ -1,616 +1,502 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi'
-import { decodeEventLog } from 'viem'
-import { ExternalLink, CheckCircle, AlertCircle, Plus, Trash2, Info, Shield } from 'lucide-react'
-import { SPLIT_RECEIPT_ABI } from '../splitReceiptContract'
-import { activeNetwork } from '../activeNetwork'
-import { getWriteBlockReason } from '../networkContext'
-import { transactionFeeFields } from '../mainnetDeployment'
-import { useDeploymentReadiness } from '../useDeploymentReadiness'
-import { useActionScope } from '../useActionScope'
-import { checkScopedWrite } from '../actionScope'
-import { checkExplicitWalletWrite, walletSnapshotMatchesDisplay } from '../walletSelection'
-import { creationMayRetry } from '../creationRetry'
-import { parseUsdcToNative, fmtNativeUsdc, validateUsdcInput } from '../usdcFormat'
-import { applyCreationReplacement, confirmBillCreation, type BillCreatedLog, type CreateBillSubmission } from '../createBillReceipt'
-import { networkSwitchErrorMessage, useExplicitWalletSelection } from '../wallet-ui'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePublicClient } from 'wagmi'
+import type { PublicClient } from 'viem'
+import { AlertCircle, CheckCircle2, PlusCircle, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { buildContextSearch, explorerTxUrl, type Address, type Hash32, type PageContext } from '../networks'
+import { MAX_PAYERS, MAX_TITLE_BYTES, MIN_PAYERS, utf8ByteLength, validateBillForm, type BillFormErrors } from '../billForm'
+import type { IntendedBill } from '../createBillReceipt'
+import { settleCreate, viemWait, type Settlement } from '../settlement'
+import { freezeCreateBill, sendFrozenCall } from '../walletSend'
+import { arcMainnetChain, arcTestnetChain } from '../config'
+import { SubmissionLock } from '../submissionLock'
+import { guardedWrite } from '../writeGuard'
+import { fmtNativeUsdc, parseUsdcToNative } from '../usdcFormat'
+import { buildShareLink } from '../lib/share'
+import { useWalletSession } from '../wallet/WalletSession'
+import { useRequestScope } from '../hooks/useRequestScope'
+import { CopyButton, ExplorerLink, Spinner, shortAddr } from './ui'
 
-const chain = activeNetwork
+type Phase = 'idle' | 'checking' | 'wallet' | 'mining' | 'verifying'
 
-function parseOnchainError(error: unknown): string {
-  const msg = (error as Error)?.message?.toLowerCase() ?? ''
-  if (msg.includes('user rejected') || msg.includes('denied')) return 'Transaction cancelled.'
-  if (msg.includes('titletoolong')) return 'Title exceeds 80 UTF-8 bytes.'
-  if (msg.includes('zerorecipient')) return 'Recipient address cannot be zero.'
-  if (msg.includes('invalidpayercount')) return 'Add 2 to 5 unique payer addresses.'
-  if (msg.includes('zeropayer')) return 'Payer address cannot be zero.'
-  if (msg.includes('duplicatepayer')) return 'Duplicate payer addresses found.'
-  if (msg.includes('zeroshare')) return 'Share amount must be greater than zero.'
-  if (msg.includes('insufficient funds')) return 'Insufficient balance to pay gas.'
-  if (msg.includes('reverted')) return 'Transaction reverted. Check your inputs.'
-  return 'Something went wrong. Please try again.'
+interface Created {
+  billId: bigint
+  hash: Hash32
+  creator: Address
 }
 
-/** Derive total from share × payer count using bigint. Returns null if share is invalid/empty. */
-function derivePreview(shareText: string, payerCount: number): { share: bigint; total: bigint } | null {
-  if (!shareText.trim()) return null
-  try {
-    const shareWei = parseUsdcToNative(shareText.trim())
-    if (shareWei <= 0n) return null
-    return { share: shareWei, total: shareWei * BigInt(payerCount) }
-  } catch {
-    return null
-  }
+/** A transaction was sent but is not (yet) a verified bill. */
+interface Unsettled {
+  kind: 'sent-unverified' | 'not-completed'
+  submittedHash: Hash32
+  finalHash: Hash32 | null
+  reason: string
 }
 
-interface CreateBillProps {
-  onBillCreated: (billId: bigint) => void
-  onViewDemo: () => void
+interface Submission {
+  submittedHash: Hash32
+  intended: IntendedBill
+  creator: Address
 }
 
-export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProps) {
-  const { address, chainId, isConnected, connector } = useAccount()
-  const readiness = useDeploymentReadiness()
-  const actionScope = useActionScope(chainId, address, connector?.uid)
-  const walletSelection = useExplicitWalletSelection()
-  const explicitlySelected = walletSelection.isSelected()
-  const [checkingWrite, setCheckingWrite] = useState(false)
-  const writeLock = useRef(false)
-  const requestScope = useRef<ReturnType<typeof actionScope.capture> | null>(null)
-  const { switchChain, isPending: isSwitching, error: switchError } = useSwitchChain()
-  const { writeContract, data: txHash, isPending, error: writeError, reset } = useWriteContract()
-  const [receiptError, setReceiptError] = useState('')
-  const submitted = useRef<CreateBillSubmission | null>(null)
-  const handled = useRef<string | null>(null)
+function writeErrorMessage(err: unknown): string {
+  const m = ((err as { shortMessage?: string }).shortMessage ?? (err as Error)?.message ?? '').toLowerCase()
+  if (m.includes('rejected') || m.includes('denied') || m.includes('cancel')) return 'You cancelled the request in your wallet. Nothing was sent.'
+  if (m.includes('insufficient funds')) return 'Your wallet does not have enough USDC to pay the network fee.'
+  if (m.includes('already pending') || m.includes('-32002')) return 'Your wallet already has a pending request. Open it to continue.'
+  return 'The wallet could not send the transaction. Nothing was created.'
+}
 
-  const { isLoading: isConfirming, isSuccess, data: receipt, error: waitError } = useWaitForTransactionReceipt({
-    hash: txHash,
-    chainId: submitted.current?.chainId ?? activeNetwork.chainId,
-    onReplaced(replacement) {
-      const request = submitted.current
-      if (!request || !requestScope.current || !actionScope.isCurrent(requestScope.current)) return
-      const next = applyCreationReplacement(request, {
-        reason: replacement.reason,
-        replacedHash: replacement.replacedTransaction.hash,
-        minedHash: replacement.transactionReceipt.transactionHash,
-      })
-      if (next === request) return
-      submitted.current = next
-      if (next.invalidated) {
-        if (creationMayRetry(next.invalidated)) writeLock.current = false
-        setReceiptError(next.invalidated === 'cancelled'
-          ? 'Transaction cancelled in your wallet. No bill was created by this request.'
-          : 'Transaction was replaced. Check your wallet before trying again.')
-      }
-    },
-  })
+export default function CreateBill({
+  context,
+  onOpenBill,
+}: {
+  context: PageContext
+  onOpenBill: (context: PageContext, billId: bigint, created?: Hash32 | null) => void
+}) {
+  const w = useWalletSession()
+  const client = usePublicClient({ chainId: context.network.chainId }) as unknown as PublicClient | undefined
 
   const [title, setTitle] = useState('')
   const [recipient, setRecipient] = useState('')
   const [payers, setPayers] = useState<string[]>(['', ''])
   const [share, setShare] = useState('')
-  const [validationError, setValidationError] = useState('')
+  const [errors, setErrors] = useState<BillFormErrors>({})
+  const [phase, setPhase] = useState<Phase>('idle')
+  const [notice, setNotice] = useState<string | null>(null)
+  const [pendingHash, setPendingHash] = useState<Hash32 | null>(null)
+  const [created, setCreated] = useState<Created | null>(null)
+  const [unsettled, setUnsettled] = useState<Unsettled | null>(null)
+  const lock = useRef(new SubmissionLock<Submission>()).current
+  const [shareLink, setShareLink] = useState('')
 
-  const isWrongChain = isConnected && chainId !== activeNetwork.chainId
-  const isContractDeployed = readiness.check.status === 'ready'
-  const writeBlockReason = getWriteBlockReason(activeNetwork, readiness.check, chainId, address)
+  const scope = useRequestScope(w.epochs)
 
-  // Derived preview (pure bigint, no floating-point)
-  const preview = derivePreview(share, payers.length)
-
-  const addPayer = () => { if (payers.length < 5) setPayers(p => [...p, '']) }
-  const removePayer = (i: number) => { if (payers.length > 2) setPayers(p => p.filter((_, idx) => idx !== i)) }
-  const updatePayer = (i: number, val: string) => { setPayers(p => p.map((a, idx) => idx === i ? val.trim() : a)) }
-
-  const validate = useCallback((): boolean => {
-    setValidationError('')
-    if (!title.trim()) { setValidationError('Title is required.'); return false }
-    if (new TextEncoder().encode(title.trim()).length > 80) { setValidationError('Title exceeds 80 UTF-8 bytes.'); return false }
-    if (!recipient.match(/^0x[0-9a-fA-F]{40}$/)) { setValidationError('Enter a valid recipient address.'); return false }
-    if (/^0x0{40}$/i.test(recipient)) { setValidationError('Recipient address cannot be zero.'); return false }
-    for (const p of payers) {
-      if (!p.match(/^0x[0-9a-fA-F]{40}$/)) { setValidationError('All payer addresses must be valid 0x… addresses.'); return false }
-      if (/^0x0{40}$/i.test(p)) { setValidationError('Payer addresses cannot be zero.'); return false }
+  useEffect(() => {
+    if (!created) return
+    let live = true
+    void buildShareLink(buildContextSearch(context, created.billId)).then((l) => live && setShareLink(l))
+    return () => {
+      live = false
     }
-    const unique = new Set(payers.map(p => p.toLowerCase()))
-    if (unique.size !== payers.length) { setValidationError('Duplicate payer addresses.'); return false }
-    const shareErr = validateUsdcInput(share)
-    if (shareErr) { setValidationError(shareErr); return false }
-    return true
-  }, [title, recipient, payers, share])
+  }, [created, context])
 
-  const handleCreate = async () => {
-    if (!isConnected || !address || chainId !== activeNetwork.chainId || isPending || isConfirming || checkingWrite || writeLock.current || !activeNetwork.contract) return
-    const walletSnapshot = walletSelection.capture()
-    if (!walletSnapshot || !walletSnapshotMatchesDisplay(walletSnapshot, { account: address, chainId, connectorUid: connector?.uid })) {
-      setValidationError('The displayed wallet changed. Review and confirm the wallet in the wallet menu before creating a bill.'); return
+  const busy = phase !== 'idle'
+  const readiness = w.readiness
+
+  const preview = useMemo(() => {
+    let shareNative: bigint | null = null
+    try {
+      shareNative = parseUsdcToNative(share)
+    } catch {
+      shareNative = null
     }
-    if (!validate()) return
-    writeLock.current = true
-    setCheckingWrite(true)
-    const walletGate = await checkExplicitWalletWrite(walletSelection, walletSnapshot,
-      () => checkScopedWrite(activeNetwork, actionScope, readiness.recheck, walletSnapshot.chainId, walletSnapshot.account))
-    setCheckingWrite(false)
-    const verified = walletGate.verification
-    if (walletGate.blocked || !verified || !walletSelection.isCurrent(walletSnapshot) || !actionScope.isCurrent(verified.snapshot)) {
-      writeLock.current = false; setValidationError(walletGate.blocked ?? 'Select and confirm your wallet before creating a bill.'); return
+    const filled = payers.map((p) => p.trim()).filter(Boolean)
+    return {
+      shareNative,
+      total: shareNative !== null ? shareNative * BigInt(Math.max(payers.length, 1)) : null,
+      filled,
     }
-    requestScope.current = verified.snapshot
-    reset()
-    setReceiptError('')
-    handled.current = null
-    let shareWei: bigint
-    try { shareWei = parseUsdcToNative(share) } catch (e) { writeLock.current = false; setValidationError((e as Error).message); return }
-    const request: CreateBillSubmission = {
-      chainId: activeNetwork.chainId, contract: activeNetwork.contract!,
-      creator: walletSnapshot.account.toLowerCase(),
-      title: title.trim(), recipient: recipient.toLowerCase(),
-      payers: payers.map(p => p.toLowerCase()), share: shareWei,
+  }, [share, payers])
+
+  const chain = context.network.key === 'mainnet' ? arcMainnetChain : arcTestnetChain
+
+  /** Read-only: decides what happened to a sent transaction. Never sends anything. */
+  const settle = async (sub: Submission): Promise<void> => {
+    if (!client) return
+    const token = scope.begin()
+    setPhase('mining')
+    try {
+      const result: Settlement<{ billId: bigint; creator: Address }> = await settleCreate({
+        client,
+        wait: viemWait(client),
+        token,
+        submittedHash: sub.submittedHash,
+        chainId: context.network.chainId,
+        contract: context.deployment.address,
+        intended: sub.intended,
+        creator: sub.creator,
+      })
+      lock.reconcile(result.kind)
+      if (result.kind === 'stale') {
+        if (token.ownerActive()) {
+          setUnsettled({
+            kind: 'sent-unverified',
+            submittedHash: sub.submittedHash,
+            finalHash: null,
+            reason: 'Your wallet or this page changed before the result was checked.',
+          })
+        }
+        return
+      }
+      if (result.kind === 'verified') {
+        setUnsettled(null)
+        setCreated({ billId: result.data.billId, hash: result.finalHash, creator: result.data.creator })
+        toast.success(`Bill ${result.data.billId} created`)
+        return
+      }
+      setUnsettled({
+        kind: result.kind,
+        submittedHash: result.submittedHash,
+        finalHash: result.kind === 'not-completed' ? result.finalHash : null,
+        reason: result.reason,
+      })
+    } finally {
+      if (token.ownerActive()) setPhase('idle')
     }
-    submitted.current = request
-    writeContract({
-      address: activeNetwork.contract!,
-      abi: SPLIT_RECEIPT_ABI,
-      functionName: 'createBill',
-      connector: walletSnapshot.connector, account: walletSnapshot.account,
-      args: [title.trim(), recipient as `0x${string}`, payers as `0x${string}`[], shareWei],
-      chainId: activeNetwork.chainId, ...transactionFeeFields(activeNetwork),
-    }, { onSuccess(hash) { request.hash = hash }, onError() { writeLock.current = false; if (submitted.current === request) submitted.current = null } })
   }
 
-  // Extract the billId from the BillCreated event log once the receipt arrives
-  useEffect(() => {
-    const request = submitted.current
-    if (!isSuccess || !receipt || !request?.hash || handled.current === receipt.transactionHash ||
-      !requestScope.current || !actionScope.isCurrent(requestScope.current)) return
-    const decodedLogs: BillCreatedLog[] = []
-    for (const log of receipt.logs) {
-      if (log.address.toLowerCase() !== request.contract.toLowerCase()) continue
-      try {
-        const decoded = decodeEventLog({ abi: SPLIT_RECEIPT_ABI, data: log.data, topics: log.topics, eventName: 'BillCreated' })
-        decodedLogs.push({ address: log.address, args: decoded.args })
-      } catch { /* not our log */ }
-    }
-    const result = confirmBillCreation(request,
-      { status: receipt.status, transactionHash: receipt.transactionHash, logs: decodedLogs },
-      { receiptChainId: activeNetwork.chainId, connectedAddress: address, connectedChainId: chainId })
-    if (result.kind === 'stale') return
-    if (creationMayRetry(result.kind)) writeLock.current = false
-    if (result.kind === 'confirmed') {
-      handled.current = result.transactionHash
-      setReceiptError('')
-      onBillCreated(result.billId)
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (busy) return
+    if (lock.held) {
+      // A submitted transaction is unresolved: only a read-only check can release this lock.
+      setNotice('A transaction you sent is still being verified. Use Check again; nothing new will be requested from your wallet.')
       return
     }
-    const messages: Record<string, string> = {
-      reverted: 'Transaction reverted. No bill was created.',
-      cancelled: 'Transaction cancelled in your wallet. No bill was created by this request.',
-      replaced: 'Transaction was replaced. Check your wallet before trying again.',
-      'wrong-wallet': 'This request belongs to your previous wallet. Reconnect that wallet to finish checking its bill.',
-      'wrong-chain': `Switch back to ${activeNetwork.name} to finish checking this bill.`,
-      'missing-event': 'The successful receipt did not contain the expected bill event. Inspect the transaction on the explorer before creating another bill.',
-      'ambiguous-event': 'The receipt contains more than one matching bill. Inspect it on the explorer before trying again.',
+    setNotice(null)
+    setCreated(null)
+    setUnsettled(null)
+    setPendingHash(null)
+
+    const result = validateBillForm({ title, recipient, payers, share })
+    if (!result.ok) {
+      setErrors(result.errors)
+      return
     }
-    setReceiptError(messages[result.kind] ?? 'Unknown error.')
-  }, [isSuccess, receipt, address, chainId, onBillCreated])
+    setErrors({})
 
-  useEffect(() => {
-    if (waitError) {
-      writeLock.current = false
-      setReceiptError('Receipt lookup failed. Inspect the existing transaction on the explorer before retrying.')
+    if (!readiness.ready) {
+      if (readiness.need === 'switch-network') await w.switchToNetwork()
+      else if (readiness.need === 'acknowledge') w.acknowledge()
+      else setNotice(readiness.message)
+      return
     }
-  }, [waitError])
+    const { connector, acknowledgedProvider } = w.getWriteSession()
+    if (!client || !connector) {
+      setNotice('The network connection is not ready yet. Try again in a moment.')
+      return
+    }
 
-  const txUrl = (receipt?.transactionHash || txHash)
-    ? `${chain.explorerBase}/tx/${receipt?.transactionHash || txHash}`
-    : null
+    const intended = result.intended
+    const walletAtStart = w.getSnapshot()
+    const creator = walletAtStart.address as Address
+    const call = freezeCreateBill(context.network, context.deployment, creator, intended)
+    const token = scope.begin()
+    let sentHash: Hash32 | null = null
 
-  const titleBytes = new TextEncoder().encode(title.trim()).length
-  const isBusy = isPending || isConfirming || checkingWrite
+    try {
+      setPhase('checking')
+      const sent = await guardedWrite({
+        client,
+        network: context.network,
+        deployment: context.deployment,
+        wallet: walletAtStart,
+        acknowledgedKey: w.acknowledgedKey,
+        acknowledgedProvider,
+        getProvider: () => connector.getProvider(),
+        token,
+        getWallet: w.getSnapshot,
+        send: (provider) => {
+          setPhase('wallet')
+          // The guard that matters runs on the wallet request itself (see walletSend.ts).
+          return sendFrozenCall({ call, provider, chain, guard: { token, wallet: walletAtStart, getWallet: w.getSnapshot } })
+        },
+      })
+      if (!sent.ok) {
+        if (token.ownerActive()) setNotice(sent.reason)
+        return
+      }
+      if (!sent.value.ok) {
+        if (token.ownerActive()) setNotice(sent.value.reason)
+        return
+      }
+      sentHash = sent.value.hash
+      const sub: Submission = { submittedHash: sentHash, intended, creator }
+      lock.hold(sub) // synchronous: from here on only a read-only check can release it
 
-  /* ── JSX ───────────────────────────────────────────────────────────────────── */
+      // The transaction exists now. It is never reported as "nothing was created".
+      setPendingHash(sentHash)
+      if (!token.ownerActive()) return
+      setPhase('mining')
+      await settle(sub)
+    } catch (err) {
+      if (sentHash) {
+        if (token.ownerActive()) {
+          setUnsettled({ kind: 'sent-unverified', submittedHash: sentHash, finalHash: null, reason: 'The result could not be read yet.' })
+        }
+      } else if (token.ownerActive()) {
+        setNotice(writeErrorMessage(err))
+      }
+    } finally {
+      if (token.ownerActive()) setPhase((p) => (p === 'checking' || p === 'wallet' ? 'idle' : p))
+    }
+  }
+
+  const ctaLabel = (() => {
+    if (phase === 'checking') return 'Checking contract…'
+    if (phase === 'wallet') return 'Confirm in your wallet…'
+    if (phase === 'mining') return 'Waiting for confirmation…'
+    if (phase === 'verifying') return 'Verifying the bill…'
+    if (unsettled?.kind === 'sent-unverified') return 'Waiting for the sent transaction'
+    if (!readiness.ready) {
+      if (readiness.need === 'switch-network') return `Switch to ${context.network.label}`
+      if (readiness.need === 'acknowledge') return 'Use this wallet'
+      return 'Connect a wallet to create'
+    }
+    return context.network.realFunds ? 'Create bill (pays network fee in real USDC)' : 'Create bill'
+  })()
+  const ctaDisabled = busy || unsettled?.kind === 'sent-unverified' || (!readiness.ready && readiness.need === 'connect')
+
+  const titleBytes = utf8ByteLength(title.trim())
+
   return (
-    <div>
-      {/* Page heading */}
-      <div className="mb-8">
-        <h1 className="sr-heading-xl mb-1" style={{ color: 'var(--ink)' }}>Create a shared bill</h1>
-        <p className="sr-small" style={{ color: 'var(--subdued)' }}>
-          Assign equal shares, add payers, and get a shareable receipt link.
+    <div className="layout-create">
+      <section aria-labelledby="create-title">
+        <h1 id="create-title" className="sr-heading-xl" style={{ marginBottom: 4 }}>Split a bill</h1>
+        <p className="sr-body" style={{ color: 'var(--secondary)', marginBottom: 24, maxWidth: '60ch' }}>
+          Name the recipient and each payer. Every payer sends their exact share, and the contract forwards it straight
+          to the recipient.
         </p>
-      </div>
 
-      {isConnected && !explicitlySelected && (
-        <div className="alert-warn mb-6" role="alert"><AlertCircle size={15} aria-hidden="true" />
-          <span>Confirm the wallet you intend to use in the wallet menu before creating a bill.</span>
-        </div>
-      )}
+        <form onSubmit={(e) => void submit(e)} noValidate className="doc-surface" style={{ padding: 24 }}>
+          <div style={{ marginBottom: 20 }}>
+            <label htmlFor="title" className="sr-heading-sm" style={{ display: 'block', marginBottom: 6 }}>Title</label>
+            <input
+              id="title"
+              className="sr-input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Team dinner"
+              autoComplete="off"
+              aria-invalid={Boolean(errors.title)}
+              aria-describedby="title-help"
+            />
+            <p id="title-help" className="sr-meta" style={{ color: errors.title ? 'var(--danger)' : 'var(--subdued)', marginTop: 4 }}>
+              {errors.title ?? `${titleBytes}/${MAX_TITLE_BYTES} bytes. Titles are public.`}
+            </p>
+          </div>
 
-      {/* Deployment is checked against the selected chain and reviewed bytecode. */}
-      {!isContractDeployed && (
-        <div className="alert-warn mb-6" role="alert">
-          <AlertCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
-          <span>{readiness.check.reason ?? 'Checking the selected network deployment…'}</span>
-        </div>
-      )}
-
-      {/* ── 60/40 layout — single column <1024px, two-column ≥1024px ──── */}
-      <div className="layout-create">
-        {/* ── Editor ──────────────────────────────────────────────────── */}
-        <div className="doc-surface p-6 space-y-6 min-w-0">
-
-            {/* Wrong chain */}
-            {isWrongChain && (
-              <div className="alert-warn" role="alert">
-                <AlertCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
-                <span className="flex-1 sr-small">Switch to {activeNetwork.name} to create a bill.</span>
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  style={{ minHeight: '36px', padding: '4px 12px', fontSize: '13px' }}
-                  onClick={() => switchChain({ chainId: activeNetwork.chainId })}
-                  disabled={isSwitching}
-                  aria-busy={isSwitching}
-                >
-                  {isSwitching ? 'Switching…' : 'Switch'}
-                </button>
-              </div>
+          <div style={{ marginBottom: 20 }}>
+            <label htmlFor="recipient" className="sr-heading-sm" style={{ display: 'block', marginBottom: 6 }}>Recipient</label>
+            <input
+              id="recipient"
+              className="sr-input sr-mono"
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              placeholder="0x…"
+              autoComplete="off"
+              spellCheck={false}
+              aria-invalid={Boolean(errors.recipient)}
+            />
+            {errors.recipient && <p className="sr-meta" style={{ color: 'var(--danger)', marginTop: 4 }}>{errors.recipient}</p>}
+            {w.snapshot.address && (
+              <button type="button" className="btn-ghost" style={{ marginTop: 8 }} onClick={() => setRecipient(w.snapshot.address ?? '')}>
+                Use my wallet
+              </button>
             )}
-            {isWrongChain && switchError && (
-              <p role="alert" className="sr-small" style={{ color: 'var(--danger)' }}>
-                {networkSwitchErrorMessage(switchError)}
-              </p>
-            )}
+          </div>
 
-            {/* Section: Bill details */}
-            <fieldset className="space-y-5" style={{ border: 'none', padding: 0, margin: 0 }}>
-              <legend
-                className="sr-heading-sm mb-4 pb-3 w-full"
-                style={{ color: 'var(--ink)', borderBottom: '1px solid var(--border)' }}
-              >
-                Bill details
-              </legend>
+          <div style={{ marginBottom: 20 }}>
+            <label htmlFor="share" className="sr-heading-sm" style={{ display: 'block', marginBottom: 6 }}>
+              Share per payer (USDC)
+            </label>
+            <input
+              id="share"
+              className="sr-input sr-mono"
+              inputMode="decimal"
+              value={share}
+              onChange={(e) => setShare(e.target.value)}
+              placeholder="10.50"
+              autoComplete="off"
+              aria-invalid={Boolean(errors.share)}
+            />
+            <p className="sr-meta" style={{ color: errors.share ? 'var(--danger)' : 'var(--subdued)', marginTop: 4 }}>
+              {errors.share ?? 'Up to 6 decimal places. Network fees are paid on top.'}
+            </p>
+          </div>
 
-              {/* Bill name */}
-              <div>
-                <label htmlFor="bill-title" className="block sr-small font-medium mb-1.5" style={{ color: 'var(--secondary)' }}>
-                  Bill name
-                </label>
-                <input
-                  id="bill-title"
-                  type="text"
-                  className="sr-input"
-                  placeholder="e.g. Team dinner"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  aria-describedby="title-hint"
-                />
-                <p
-                  id="title-hint"
-                  className="sr-meta mt-1 text-right"
-                  style={{ color: titleBytes > 72 ? 'var(--danger)' : 'var(--placeholder)' }}
-                >
-                  {titleBytes}/80 bytes
-                </p>
-              </div>
-
-              {/* Amount per person */}
-              <div>
-                <label htmlFor="share-amount" className="block sr-small font-medium mb-1.5" style={{ color: 'var(--secondary)' }}>
-                  Amount per person
-                </label>
-                <div className="relative">
-                  <input
-                    id="share-amount"
-                    type="text"
-                    inputMode="decimal"
-                    className="sr-input"
-                    style={{ paddingRight: '64px' }}
-                    placeholder="0.00"
-                    value={share}
-                    onChange={e => setShare(e.target.value)}
-                    aria-describedby="share-hint"
-                  />
-                  <span
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 sr-small font-semibold pointer-events-none"
-                    style={{ color: 'var(--subdued)' }}
-                  >
-                    USDC
-                  </span>
-                </div>
-                <p id="share-hint" className="sr-meta mt-1" style={{ color: 'var(--placeholder)' }}>
-                  Up to 6 decimal places. Each payer sends this amount to the recipient.
-                </p>
-              </div>
-            </fieldset>
-
-            <hr className="doc-rule" />
-
-            {/* Section: Recipient */}
-            <fieldset className="space-y-3" style={{ border: 'none', padding: 0, margin: 0 }}>
-              <legend
-                className="sr-heading-sm mb-4 pb-3 w-full"
-                style={{ color: 'var(--ink)', borderBottom: '1px solid var(--border)' }}
-              >
-                Recipient
-              </legend>
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="recipient" className="sr-small font-medium" style={{ color: 'var(--secondary)' }}>
-                    Wallet address
-                  </label>
-                  {isConnected && address && (
-                    <button
-                      type="button"
-                      className="sr-meta font-medium min-h-[44px] px-2"
-                      style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}
-                      onClick={() => setRecipient(address)}
-                    >
-                      Use my wallet
-                    </button>
-                  )}
-                </div>
-                <input
-                  id="recipient"
-                  type="text"
-                  className="sr-input sr-mono"
-                  style={{ fontSize: '13px' }}
-                  placeholder="0x…"
-                  value={recipient}
-                  onChange={e => setRecipient(e.target.value.trim())}
-                  aria-describedby="recipient-hint"
-                />
-                <p id="recipient-hint" className="sr-only">
-                  The Ethereum address that will receive all payments immediately.
-                </p>
-              </div>
-            </fieldset>
-
-            <hr className="doc-rule" />
-
-            {/* Section: People paying */}
-            <fieldset className="space-y-3" style={{ border: 'none', padding: 0, margin: 0 }}>
-              <legend
-                className="sr-heading-sm pb-3 w-full mb-1"
-                style={{ color: 'var(--ink)', borderBottom: '1px solid var(--border)' }}
-              >
-                People paying
-              </legend>
-              <p className="sr-meta" style={{ color: 'var(--placeholder)' }}>
-                2–5 unique wallet addresses · Equal shares
-              </p>
-
-              <div className="space-y-2">
-                {payers.map((p, i) => (
-                  <div key={i} className="flex items-center gap-2">
+          <fieldset style={{ border: 0, padding: 0, margin: '0 0 20px' }}>
+            <legend className="sr-heading-sm" style={{ marginBottom: 6 }}>
+              Payers ({payers.length} of {MAX_PAYERS})
+            </legend>
+            <div className="flex flex-col gap-2">
+              {payers.map((p, i) => (
+                <div key={i}>
+                  <div className="flex items-center gap-2">
                     <span className="payer-badge" aria-hidden="true">{i + 1}</span>
                     <input
-                      type="text"
-                      id={`payer-${i}`}
-                      className="sr-input sr-mono flex-1"
-                      style={{ fontSize: '13px' }}
-                      placeholder="0x…"
+                      className="sr-input sr-mono"
+                      aria-label={`Payer ${i + 1} address`}
                       value={p}
-                      onChange={e => updatePayer(i, e.target.value)}
-                      aria-label={`Payer ${i + 1} wallet address`}
+                      onChange={(e) => setPayers((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
+                      placeholder="0x…"
+                      autoComplete="off"
+                      spellCheck={false}
+                      aria-invalid={Boolean(errors.payers?.[i])}
                     />
-                    {payers.length > 2 && (
+                    {payers.length > MIN_PAYERS && (
                       <button
                         type="button"
-                        onClick={() => removePayer(i)}
-                        className="touch-target flex items-center justify-center"
-                        style={{ color: 'var(--danger)', flexShrink: 0, width: '44px', height: '44px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px' }}
+                        className="btn-ghost touch-target"
                         aria-label={`Remove payer ${i + 1}`}
+                        onClick={() => setPayers((prev) => prev.filter((_, j) => j !== i))}
                       >
                         <Trash2 size={15} aria-hidden="true" />
                       </button>
                     )}
                   </div>
-                ))}
-              </div>
-
-              {payers.length < 5 && (
-                <button
-                  type="button"
-                  onClick={addPayer}
-                  className="btn-ghost mt-1"
-                  style={{ width: 'auto' }}
-                >
-                  <Plus size={14} aria-hidden="true" />
-                  Add payer
-                </button>
-              )}
-            </fieldset>
-
-            <hr className="doc-rule" />
-
-            {/* Validation / write / wait errors */}
-            {validationError && (
-              <div className="alert-danger" role="alert">
-                <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }} />
-                <span>{validationError}</span>
-              </div>
-            )}
-            {writeError && !validationError && (
-              <div className="alert-danger" role="alert">
-                <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }} />
-                <span>{parseOnchainError(writeError)}</span>
-              </div>
-            )}
-            {(receiptError || waitError) && !validationError && (
-              <div className="alert-danger" role="alert">
-                <AlertCircle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }} />
-                <span>{receiptError || parseOnchainError(waitError)} {txUrl && <a href={txUrl} target="_blank" rel="noopener noreferrer" className="underline">Inspect transaction</a>}</span>
-              </div>
-            )}
-
-            {/* Pending / confirming */}
-            {isBusy && (
-              <div className="alert-info" aria-live="polite">
-                <div className="spinner" style={{ width: '14px', height: '14px' }} aria-hidden="true" />
-                <span>{isPending ? 'Waiting for wallet confirmation…' : 'Confirming on chain…'}</span>
-              </div>
-            )}
-
-            {/* Success */}
-            {isSuccess && receipt?.status === 'success' && handled.current === receipt.transactionHash && txUrl && (
-              <div className="alert-success">
-                <CheckCircle size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
-                <span className="flex-1">Bill created!</span>
-                <a href={txUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1 sr-small font-semibold"
-                  style={{ color: 'var(--success)' }}>
-                  Explorer <ExternalLink size={12} aria-hidden="true" />
-                </a>
-              </div>
-            )}
-
-            {/* CTA */}
-            {!isConnected ? (
-              <div className="space-y-3">
-                <p className="sr-small" style={{ color: 'var(--subdued)' }}>
-                  Connect a wallet using the button in the navigation to create a bill.
-                </p>
-                <button
-                  type="button"
-                  disabled
-                  className="btn-primary"
-                  aria-disabled="true"
-                  style={{
-                    background: 'transparent',
-                    border: '2px dashed var(--border-strong)',
-                    color: 'var(--subdued)',
-                    opacity: 1,
-                    cursor: 'not-allowed',
-                  }}
-                >
-                  {activeNetwork.isTestnet || activeNetwork.mainnetWritesEnabled ? 'Connect wallet to continue' : 'Mainnet transactions disabled'}
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={isWrongChain ? () => switchChain({ chainId: activeNetwork.chainId }) : handleCreate}
-                disabled={!explicitlySelected || isBusy || writeLock.current || isSwitching || !isContractDeployed || (!isWrongChain && Boolean(writeBlockReason)) || (!activeNetwork.isTestnet && !activeNetwork.mainnetWritesEnabled)}
-                className="btn-primary"
-                aria-busy={isBusy || isSwitching}
-              >
-                {!activeNetwork.isTestnet && !activeNetwork.mainnetWritesEnabled ? 'Mainnet transactions disabled'
-                  : checkingWrite ? 'Verifying deployment…'
-                  : isWrongChain ? isSwitching ? 'Switching network…' : `Switch to ${activeNetwork.name}`
-                  : isPending ? 'Confirm in wallet…'
-                  : isConfirming ? 'Confirming…'
-                  : 'Create bill'}
-              </button>
-            )}
-
-            {/* Caption row */}
-            <div className="flex items-center justify-between sr-meta" style={{ color: 'var(--placeholder)' }}>
-              <span>{isConnected && !isWrongChain && !isBusy ? 'Wallet confirmation required' : '\u00a0'}</span>
-              <button
-                type="button"
-                className="font-medium"
-                style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}
-                onClick={onViewDemo}
-              >
-                View demo receipt →
-              </button>
-            </div>
-          </div>
-
-        {/* ── Right: receipt preview ───────────────────────────────── */}
-        <div className="create-preview">
-            <div className="receipt-preview p-5" aria-live="polite" aria-label="Bill preview">
-              {/* Receipt header */}
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <p className="sr-meta font-semibold mb-0.5" style={{ color: 'var(--subdued)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                    Receipt preview
-                  </p>
-                  <p
-                    className="sr-heading-md mt-1 break-words"
-                    style={{ color: title.trim() ? 'var(--ink)' : 'var(--placeholder)', maxWidth: '200px' }}
-                  >
-                    {title.trim() || 'Bill name'}
-                  </p>
+                  {errors.payers?.[i] && (
+                    <p className="sr-meta" style={{ color: 'var(--danger)', margin: '4px 0 0 30px' }}>{errors.payers[i]}</p>
+                  )}
                 </div>
-                <span className="badge-draft">Draft</span>
-              </div>
-
-              {/* Dashed rule */}
-              <hr className="doc-rule doc-rule--dashed mb-4" />
-
-              {/* Share row */}
-              <div className="flex items-center justify-between py-2.5">
-                <span className="sr-small" style={{ color: 'var(--secondary)' }}>Each person pays</span>
-                <span className="sr-small font-semibold sr-mono" style={{ color: 'var(--ink)' }}>
-                  {preview
-                    ? <>{fmtNativeUsdc(preview.share)} <span style={{ color: 'var(--subdued)' }}>USDC</span></>
-                    : <span style={{ color: 'var(--placeholder)' }}>—</span>}
-                </span>
-              </div>
-              <div className="flex items-center justify-between py-2.5" style={{ borderTop: '1px solid var(--border)' }}>
-                <span className="sr-small" style={{ color: 'var(--secondary)' }}>Number of payers</span>
-                <span className="sr-small font-semibold sr-mono" style={{ color: 'var(--ink)' }}>{payers.length}</span>
-              </div>
-
-              {/* Solid rule before total */}
-              <hr className="doc-rule my-1" />
-
-              {/* Total */}
-              <div className="flex items-center justify-between pt-3 pb-1">
-                <span className="sr-heading-sm" style={{ color: 'var(--ink)' }}>Total</span>
-                <span className="sr-heading-md sr-mono" style={{ color: 'var(--primary)' }}>
-                  {preview
-                    ? <>{fmtNativeUsdc(preview.total)} <span className="sr-small font-medium" style={{ color: 'var(--subdued)' }}>USDC</span></>
-                    : <span style={{ color: 'var(--placeholder)', fontWeight: 400, fontSize: '14px' }}>—</span>}
-                </span>
-              </div>
-
-              {/* Recipient row */}
-              {recipient.match(/^0x[0-9a-fA-F]{40}$/) && (
-                <>
-                  <hr className="doc-rule doc-rule--dashed mt-4 mb-3" />
-                  <div className="flex items-center justify-between">
-                    <span className="sr-meta" style={{ color: 'var(--subdued)' }}>Recipient</span>
-                    <span className="sr-meta sr-mono" style={{ color: 'var(--ink-2)' }}>
-                      {recipient.slice(0, 6)}…{recipient.slice(-4)}
-                    </span>
-                  </div>
-                </>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2" style={{ marginTop: 10 }}>
+              {payers.length < MAX_PAYERS && (
+                <button type="button" className="btn-ghost" onClick={() => setPayers((prev) => [...prev, ''])}>
+                  <PlusCircle size={14} aria-hidden="true" /> Add payer
+                </button>
+              )}
+              {w.snapshot.address && !payers.some((p) => p.toLowerCase() === w.snapshot.address) && (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() =>
+                    setPayers((prev) => {
+                      const idx = prev.findIndex((x) => x.trim() === '')
+                      if (idx === -1) return prev
+                      return prev.map((x, j) => (j === idx ? (w.snapshot.address ?? '') : x))
+                    })
+                  }
+                >
+                  Add my wallet
+                </button>
               )}
             </div>
+            {errors.form && <p className="sr-meta" style={{ color: 'var(--danger)', marginTop: 6 }}>{errors.form}</p>}
+          </fieldset>
 
-            {/* Security note beneath preview */}
-            <div
-              className="flex items-start gap-2.5 mt-4 p-3 rounded-lg sr-meta"
-              style={{ background: 'var(--success-bg)', border: '1px solid var(--success-border)', color: 'var(--success)' }}
-            >
-              <Shield size={13} style={{ flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
-              <p>Shares go directly to the recipient. No custody pool.</p>
+          {notice && (
+            <div className="alert-danger" role="alert" style={{ marginBottom: 16 }}>
+              <AlertCircle size={16} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <div>{notice}</div>
+                {pendingHash && (
+                  <div style={{ marginTop: 4 }}>
+                    <ExplorerLink href={explorerTxUrl(context.network, pendingHash)}>View transaction</ExplorerLink>
+                  </div>
+                )}
+              </div>
             </div>
+          )}
 
-            <div
-              className="flex items-start gap-2 mt-3 p-3 rounded-lg sr-meta"
-              style={{ background: 'var(--info-bg)', color: 'var(--info-ink)', border: '1px solid var(--info-border)' }}
-            >
-              <Info size={13} style={{ flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
-              <span>{activeNetwork.isTestnet ? 'Arc Testnet only. USDC here has no real-world value.' : activeNetwork.mainnetWritesEnabled ? 'Arc Mainnet uses real USDC. Review the recipient, payers, share and network before confirming in your wallet. Gas is charged separately.' : 'Arc Mainnet uses real USDC. This deployment has not been enabled for transactions.'}</span>
+          {unsettled?.kind === 'sent-unverified' && (
+            <div className="alert-warn" role="status" style={{ marginBottom: 16, flexDirection: 'column' }}>
+              <strong>Sent, but the result is not verified yet.</strong>
+              <span>
+                {unsettled.reason} The transaction may still confirm, so do not create the bill again yet. Check it in
+                the explorer, or check again here.
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-ghost touch-target"
+                  disabled={busy}
+                  onClick={() => lock.intent && void settle(lock.intent)}
+                >
+                  Check again
+                </button>
+                <ExplorerLink href={explorerTxUrl(context.network, unsettled.submittedHash)}>View transaction</ExplorerLink>
+              </div>
+            </div>
+          )}
+
+          {unsettled?.kind === 'not-completed' && (
+            <div className="alert-danger" role="alert" style={{ marginBottom: 16, flexDirection: 'column' }}>
+              <strong>This transaction did not create the bill.</strong>
+              <span>{unsettled.reason}</span>
+              <span>Nothing was created by it. You can review the form and try again; nothing is resubmitted automatically.</span>
+              <ExplorerLink href={explorerTxUrl(context.network, unsettled.finalHash ?? unsettled.submittedHash)}>View transaction</ExplorerLink>
+            </div>
+          )}
+
+          {busy && (
+            <div className="alert-info" role="status" style={{ marginBottom: 16 }}>
+              <Spinner />
+              <span>{ctaLabel}</span>
+              {pendingHash && <ExplorerLink href={explorerTxUrl(context.network, pendingHash)}>Explorer</ExplorerLink>}
+            </div>
+          )}
+
+          <button type="submit" className="btn-primary" disabled={ctaDisabled}>{ctaLabel}</button>
+          {!readiness.ready && readiness.need === 'connect' && (
+            <p className="sr-meta" style={{ color: 'var(--subdued)', marginTop: 8 }}>
+              Use Connect wallet at the top of the page. You can still fill in the bill first.
+            </p>
+          )}
+        </form>
+
+        {created && (
+          <div className="alert-success" role="status" style={{ marginTop: 16, flexDirection: 'column', alignItems: 'stretch' }}>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={18} aria-hidden="true" />
+              <span>Bill {created.billId.toString()} is created and verified.</span>
+            </div>
+            <p className="sr-small" style={{ margin: '4px 0 8px', fontWeight: 400 }}>
+              Created by <span className="sr-mono">{shortAddr(created.creator)}</span> (the sender of the verified
+              transaction). Share the link so each payer can pay their share.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ width: 'auto' }}
+                onClick={() => onOpenBill(context, created.billId, created.hash)}
+              >
+                Open bill {created.billId.toString()}
+              </button>
+              {shareLink && <CopyButton value={`${shareLink}`} label="Copy bill link" />}
+              <ExplorerLink href={explorerTxUrl(context.network, created.hash)}>Creation transaction</ExplorerLink>
             </div>
           </div>
-      </div>
+        )}
+      </section>
 
-      {/* Footer note */}
-      <p className="mt-8 text-center sr-meta" style={{ color: 'var(--placeholder)' }}>
-        Explore a completed testnet bill.{' '}
-        <button
-          type="button"
-          className="font-medium"
-          style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}
-          onClick={onViewDemo}
-        >
-          View demo receipt
-        </button>
-      </p>
+      <aside className="create-preview" aria-label="Receipt preview">
+        <div className="receipt-preview" style={{ padding: 20 }}>
+          <div className="flex items-center justify-between">
+            <span className="sr-heading-sm">Receipt preview</span>
+            <span className="badge-draft">Draft</span>
+          </div>
+          <h2 className="sr-heading-md" style={{ margin: '12px 0 4px', overflowWrap: 'anywhere' }}>
+            {title.trim() || 'Untitled bill'}
+          </h2>
+          <p className="sr-meta addr-cell" style={{ color: 'var(--subdued)' }}>
+            To {recipient.trim() ? shortAddr(recipient.trim()) : 'recipient not set'}
+          </p>
+          <hr className="doc-rule doc-rule--dashed" style={{ margin: '12px 0' }} />
+          {preview.filled.length === 0 ? (
+            <p className="sr-small" style={{ color: 'var(--subdued)' }}>Payers appear here as you add them.</p>
+          ) : (
+            preview.filled.map((p, i) => (
+              <div key={`${p}-${i}`} className="payer-row">
+                <span className="payer-badge">{i + 1}</span>
+                <span className="sr-mono sr-small addr-cell">{shortAddr(p)}</span>
+                <span className="sr-mono sr-small">{preview.shareNative !== null ? fmtNativeUsdc(preview.shareNative) : '-'}</span>
+                <span className="badge-unpaid">Unpaid</span>
+              </div>
+            ))
+          )}
+          <hr className="doc-rule" style={{ margin: '12px 0' }} />
+          <div className="flex items-baseline justify-between">
+            <span className="sr-small" style={{ color: 'var(--secondary)' }}>Total</span>
+            <span className="sr-mono" style={{ fontWeight: 600 }}>
+              {preview.total !== null ? fmtNativeUsdc(preview.total) : '-'} USDC
+            </span>
+          </div>
+        </div>
+      </aside>
     </div>
   )
 }

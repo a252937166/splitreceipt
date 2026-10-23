@@ -1,6 +1,6 @@
 /**
  * SplitReceipt contract config.
- * Defaults point to the verified public Arc Testnet deployment.
+ * Address is populated after deployment and stored in VITE_SPLIT_RECEIPT_ADDRESS.
  * The ABI is hand-matched to contracts/SplitReceipt.sol — update if the source changes.
  */
 
@@ -83,9 +83,9 @@ export const SPLIT_RECEIPT_ABI = [
   { type: 'error', name: 'ForwardFailed', inputs: [] },
 ] as const;
 
-/** Public testnet deployment; optional override is still used only on Arc Testnet. */
+/** Populated from VITE_SPLIT_RECEIPT_ADDRESS after deployment. */
 export const SPLIT_RECEIPT_ADDRESS = (
-  import.meta.env.VITE_SPLIT_RECEIPT_ADDRESS ?? '0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26'
+  import.meta.env.VITE_SPLIT_RECEIPT_ADDRESS ?? ''
 ) as `0x${string}`;
 
 /**
@@ -93,11 +93,11 @@ export const SPLIT_RECEIPT_ADDRESS = (
  * floor for historical SharePaid log queries.
  *
  * Set VITE_SPLIT_RECEIPT_DEPLOY_BLOCK=<number> in .env after deployment.
- * When absent (null), resumable history queries start at the newest block
- * and can continue backwards to genesis without claiming unfinished history is complete.
+ * When absent (null), log queries fall back to a bounded recent-only
+ * lookback and the UI shows an "history incomplete" notice.
  */
 const _deployBlockRaw: string =
-  String(import.meta.env.VITE_SPLIT_RECEIPT_DEPLOY_BLOCK ?? '67660831')
+  String(import.meta.env.VITE_SPLIT_RECEIPT_DEPLOY_BLOCK ?? '')
 export const SPLIT_RECEIPT_DEPLOY_BLOCK: bigint | null =
   _deployBlockRaw && /^\d+$/.test(_deployBlockRaw)
     ? BigInt(_deployBlockRaw)

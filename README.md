@@ -2,9 +2,11 @@
 
 > **23 October 2026 update:** Arc Mainnet contract deployment is now verified. See [current mainnet status and evidence](docs/MAINNET-LIVE.md) for the exact source-pinned deployment, live application/receipt status, fees and remaining submission work. Deployment and wallet funding alone are not a through-application payment. The dated Testnet/preparation material below is retained as historical evidence; its statements about an undeployed or disabled mainnet describe that earlier checkpoint. No competition submission or eligibility acceptance is claimed.
 
+> **23 October 2026 (Studio replacement rebuild, candidate only):** the original Studio snapshot was restored; the older externally prepared wallet, receipt and core code was removed or quarantined and then newly reimplemented by the Studio AI in one Arc Studio thread, with two independent review and repair rounds recorded. The seven original protected files are retained byte-for-byte. This candidate is **not published, uploaded, formally submitted or approved**: the public site still runs the earlier deployed commit described below. The earlier "Connecting to sandbox" failure of the embedded Studio Preview is dated history: an independent browser operator opened the official full Studio Preview pane on 23 October (17:58–18:01 UTC), filled the create form (title, recipient, two payers, share 0.001, draft total 0.002) and opened the wallet chooser (Phantom, OKX and MetaMask listed; Tab focused an option; Escape closed it and restored focus to the trigger), with no wallet connection, signature or transaction. Public-browser acceptance, real-wallet QA and publication are pending. This does not rewrite the mixed development history or establish organizer acceptance. See [the rebuild record](docs/STUDIO-REIMPLEMENTATION-2026-10-23.md) and [the section below](#23-october-2026-studio-replacement-rebuild-candidate-not-published).
+
 Create a shared bill, let each payer send their exact share, and recover a transaction receipt for every confirmed payment. Each share goes directly to the bill's recipient through the contract.
 
-**Default: Arc Testnet 5042002.** Blank and legacy bill links remain on Testnet. This release also enables an explicit Arc Mainnet 5042 context for the independently verified, source-pinned contract. Mainnet uses real USDC for both payments and gas; review the network and exact request before signing. See [current mainnet evidence](docs/MAINNET-LIVE.md). No competition submission has been completed.
+**Default: Arc Testnet 5042002.** Blank and legacy bill links remain on Testnet. The deployed release (and the 23 October rebuild candidate) support an explicit Arc Mainnet 5042 context for the independently verified, source-pinned contract. Mainnet uses real USDC for both payments and gas; review the network and exact request before signing. See [current mainnet evidence](docs/MAINNET-LIVE.md). No competition submission has been completed.
 
 [Public demo](https://splitreceipt.axiqo.xyz/splitreceipt/) · [Latest completed bill 6](https://splitreceipt.axiqo.xyz/splitreceipt/?network=testnet&chainId=5042002&contract=0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26&bill=6) · [Source](https://github.com/a252937166/splitreceipt) · [Studio project](https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62) · [Validation](docs/VALIDATION.md) · [Submission readiness](docs/submission/READINESS.md)
 
@@ -18,7 +20,7 @@ The wallet integration now lists named discovered providers, avoids the shared l
 2. Get free **test** USDC from the [Circle faucet](https://faucet.circle.com/), selecting Arc Testnet. A wallet needs test USDC for both its share and transaction gas.
 3. Create a bill with a title, recipient, two to five unique payer addresses, and an equal share amount. Share amounts in the app support up to six decimal places.
 4. Share the generated link, which includes the configured network, chain ID, contract and bill ID. Each listed payer connects their own wallet and pays once. The contract requires the exact share and forwards it to the recipient.
-5. Open each confirmed transaction in the explorer. Reload the bill to rebuild its payment receipts from onchain events. Use **Continue receipt history** when an older bill needs more pages.
+5. Open each confirmed transaction in the explorer. Reload the bill to rebuild its payment receipts from onchain events. When an older bill needs more pages, use **Continue receipt history** (deployed release) or **Find missing receipts** (rebuild candidate).
 
 Bill titles, addresses, amounts and payment events are public onchain. Keep personal contact or bank details out of titles. The public application never asks for private keys or recovery phrases.
 
@@ -64,7 +66,7 @@ Primary demo: **https://splitreceipt.axiqo.xyz/splitreceipt/**
 
 Dedicated static Dogyun hosting. Verified HTTPS and a dedicated release directory with a `current` symlink. Only public `dist/` files uploaded; no backend, port, dependency or secret uploaded.
 
-**Historical deployed application source (21–22 October):** `4dae47f01bb78126e5c70621d87af0c9899cb9c6`, release `20261021T192007Z-4dae47f`. Independent HTTPS/TLS, server-release and public asset readback matched four static files (652,054 bytes). [CI for this exact application commit](https://github.com/a252937166/splitreceipt/actions/runs/39660377061) passed installation, isolation, typecheck, tests and build; its GitHub Pages deployment is separate from the dedicated Dogyun release. Current recorded source checks are 76 TypeScript tests and 38 Solidity tests including 256 fuzz runs, completed on 21 October in Studio and independently locally. The Solidity 5042 cases use a local EVM, not mainnet.
+**Historical deployed application source (21–22 October):** `4dae47f01bb78126e5c70621d87af0c9899cb9c6`, release `20261021T192007Z-4dae47f`. Independent HTTPS/TLS, server-release and public asset readback matched four static files (652,054 bytes). [CI for this exact application commit](https://github.com/a252937166/splitreceipt/actions/runs/39660377061) passed installation, isolation, typecheck, tests and build; its GitHub Pages deployment is separate from the dedicated Dogyun release. Source checks recorded at that checkpoint were 76 TypeScript tests and 38 Solidity tests including 256 fuzz runs, completed on 21 October in Studio and independently locally (historical counts; the rebuild candidate's latest checks are recorded below). The Solidity 5042 cases use a local EVM, not mainnet.
 
 A future documentation-only commit has its own repository SHA; it does not change the deployed application source SHA above unless the app is separately built, published and read back.
 
@@ -103,19 +105,22 @@ See [dependency isolation](docs/DEPENDENCY-ISOLATION.md) and [vendored Solidity 
 
 ## Receipts and limits
 
-Receipt recovery runs in two sequential phases on page load and on every explicit refresh:
+This section describes the behavior of the 23 October rebuild candidate in this workspace. The public site runs the earlier deployed commit until a separate publication and readback.
 
-**Phase 1 — Hint fast-path.** A bundled catalog of known public testnet receipt hashes, plus any hashes stored from a previous visit or encoded in the `?receipts=` URL parameter, are each verified against the live RPC before use. Verification requires: `getChainId()` confirming the immutable configured page chain (5042002 for these testnet receipts), a fresh `getBlockNumber()` head (receipts from blocks beyond head are rejected), a valid non-empty 32-byte `blockHash` on the receipt, equality with the canonical block hash from `getBlock()`, and a matching `SharePaid` log with correct contract address, bill ID, payer and amount. A receipt whose `blockHash` is missing, empty or mismatched is treated as explicitly invalid, not silently skipped.
+Receipts are recovered from the chain every time a bill is opened. Nothing stored in the browser or carried in a link is trusted.
 
-Hashes that fail verification are tracked as `invalidatedHashes` and purged from all in-memory maps before the fallback scan runs. Hashes that return a transient RPC error are preserved for display only and are not treated as verified or invalidated. A conflicting distinct verified hash for the same payer marks the result as incomplete regardless of whether all payers have entries.
+1. **Candidates.** A bundled list of public transaction hashes for known bills (testnet Bills 1 to 3 and mainnet Bill 1), any hashes saved from an earlier visit, and any in the `?receipts=` link parameter are treated only as candidates.
+2. **Canonical block and event check.** Each candidate is verified against a fresh RPC: the live chain id equals the page network, the receipt is successful and not beyond the current head, its block hash equals the canonical block hash, and a `SharePaid` log from the exact contract matches the bill, payer and share amount.
+3. **Transaction check.** The transaction must have been sent by the payer to the pinned contract, call `payShare` for this bill, and carry exactly the share as value.
+4. **Search the history.** If a paid share still has no receipt, **Find missing receipts** scans `SharePaid` logs for the bill in pages of 5,000 blocks (12 pages per press), newest first, down to the reviewed deployment block (or a bounded recent window when a deployment's block is unknown). Candidates found this way go through the same checks.
 
-**Phase 2 — Fallback log scan.** Runs only after the hint phase completes, and only for payers who still lack a verified receipt. History is scanned newest first in pages of at most 2,000 blocks, with up to 25 pages per batch. Each run has a fixed head; a payment mined after that head can require **Refresh bill** to start a new run. A complete page reload rebuilds receipts from the chain, without a private database or external indexer. Continue scanning to reach earlier history; successful pages survive an in-page retry.
+`SharePaid` has no recipient field and `BillCreated` has no creator field. The recipient shown is the fixed recipient returned by `getBill`. A creator is shown only when a creation transaction is named in the link (or known for a public example bill) and its sender and calldata verify against the chain. Paid status is the `paidStates` list returned by `getBill`; the contract has no `paid()` method.
 
-If all configured history has been scanned but some paid shares still lack links, **Retry full receipt history** starts a fresh scan while retaining already verified links.
+A pay or create request is made only after the app re-checks the chain, the contract's runtime hash, and a fresh `eth_chainId` and `eth_accounts` from the selected wallet. Any wallet or page change while those checks run cancels the request. The page never reconnects a wallet automatically.
 
-The **Copy bill link** button encodes only the receipts freshly verified in the current run for current paid payers, at most five hashes. Preserved display links from prior sessions are not included in the shared URL.
+A rejected, failed, cancelled or replaced transaction is never shown as a paid share: a payment counts only when the final transaction, its payment event and the bill's paid state all agree. If a transaction was sent but its result cannot be read yet, the app says it was sent and not yet verified, and does not resubmit anything.
 
-Only confirmed successful payment events become receipt links. A wallet rejection, failed transaction or cancelled replacement must not be presented as a paid share.
+On Arc Mainnet each write carries a cap of 40 gwei on the price per unit of gas and a priority fee of 0. That caps the price of gas, not the total fee. The **Copy bill link** button includes at most five freshly verified receipt hashes.
 
 ## Development and source history
 
@@ -130,17 +135,41 @@ The earlier 21 October light/forest redesign was authored in Studio: all six UI/
 See [provenance](docs/PROVENANCE.md) for archive hashes and validation boundaries.
 See [submission/EVIDENCE-INDEX.md](docs/submission/EVIDENCE-INDEX.md) for the full evidence map.
 
-The 22 October private process record is a QA-checked **63-second, silent, 1080p** video assembled from 21 milestone screenshots with waits compressed. It is not continuous footage and contains no Studio editing or native wallet signing screens. No public video URL exists. See [local asset status](docs/submission/LOCAL-ASSETS.md). The later mainnet deployment and walkthrough status are recorded separately in [current mainnet status](docs/MAINNET-LIVE.md).
+The 22 October private process record is a QA-checked **63-second, silent, 1080p** video assembled from 21 milestone screenshots with waits compressed. It is not continuous footage and contains no Studio editing or native wallet signing screens. No public video URL exists. A final film with real native continuous Studio and product footage, English narration and captions is being prepared; it does not exist as a public link yet, and the earlier sampled or silent edits are historical only. See [local asset status](docs/submission/LOCAL-ASSETS.md). The later mainnet deployment and walkthrough status are recorded separately in [current mainnet status](docs/MAINNET-LIVE.md).
 
 The [official round page](https://dorahacks.io/hackathon/arc-microgrants-2/detail), rechecked on 22 October, requires Studio development and an app/contract moving USDC on Arc mainnet before submission. It excludes testnet-only projects. It displays **2026-11-01 23:59 under UTC−4**; do not silently substitute New York local time. Mixed development provenance still needs an organizer answer. The current materials are a preparation packet, not an eligible or submitted entry.
 
 Original project code is available under the [MIT license](LICENSE). Dependencies retain their own licenses. This is an independent project and is not operated or endorsed by Circle.
 
 
-## Historical 21 October preparation controls; mainnet was not deployed
+## 23 October 2026: Studio replacement rebuild (candidate, not published)
 
-The deployed application includes separate Arc mainnet (`5042`) context, a blank mainnet contract address, read-only deployment-identity checks and offline unsigned review tooling. Testnet (`5042002`) remains the default. `MAINNET_WRITES_ENABLED = false` is a compiled source lock; no environment, address, URL or wallet setting can enable mainnet writes in this release.
+**What this is.** A dated replacement record. The original Studio snapshot was restored (owner statement). The older externally prepared wallet, receipt and core code was removed or quarantined and was not copied back. The Studio AI then newly wrote the network and page-context layer, wallet session and menu, request-epoch and write guards, the final wallet-request boundary with a per-network fee policy, create and pay settlement, receipt history, recovery and proofs, the create and bill screens, and their tests, in one Arc Studio thread on the already installed dependencies. Seven original protected files are retained byte-for-byte (contract, contract test, `src/index.css`, `src/receiptDiscovery.ts`, `src/usdcFormat.ts`, `src/vite-env.d.ts`, `docs/DESIGN.md`; hashes in [the rebuild record](docs/STUDIO-REIMPLEMENTATION-2026-10-23.md)).
 
-The 21 October preparation passed 67 TypeScript tests and 38 Solidity tests with 256 fuzz runs in Studio and independently locally. The later wallet-session refinement increased the TypeScript suite to 76. Its 11 source/test files were actually applied in Studio’s official manual terminal and adopted locally only after actual per-file hash readback. Codex prepared those inputs outside Studio; this is not all-Studio-AI authorship. The Bill 6 public-wallet retest on 22 October completed after those changes were published.
+**Independent review.** Round 1 (an exported ZIP, SHA-256 `3032e2852df19fc12d2196eb048d998113c304e6667c032526cde7207c240afc`) reproduced nine defects after passing its own checks; round 2 found three residual variants within those same nine findings (not new independent findings). The nine findings, including those variants, were repaired in the same thread. No review of the final state is recorded.
 
-Offline output remains `UNSIGNED_NOT_DEPLOYED_REQUIRES_INDEPENDENT_REVIEW`. A fresh artifact's runtime hash is recorded separately from the historical testnet hash. No mainnet address, deployment or payment is claimed. See [mainnet preparation](docs/MAINNET-PREPARATION.md), [the historical cost study](docs/submission/MAINNET-COST-STUDY.md) and [provenance](docs/PROVENANCE.md).
+**Latest checks, as observed at the end of this work** (candidate source in this workspace):
+
+| Check | Result |
+| --- | --- |
+| Typecheck (`tsc --noEmit`) | exit 0, no errors |
+| TypeScript tests (`node --import tsx --test tests/*.test.ts`) | 320 tests in 20 files, 320 pass, 0 fail |
+| Solidity (`forge test --offline`) | 35 pass, 0 fail, including a 256-run fuzz test |
+| Production build (`vite build`) | success, one chunk-size warning |
+| Production bundle scan | no Studio trace, console-capture, preview-bridge or fetch/wallet patch markers; no `window.ethereum` reference |
+| Dependency isolation | independent: 215 registry packages, 0 external filesystem links, 0 unused service SDKs |
+| Protected files | 7 of 7 hashes match |
+
+These replace, and do not erase, the earlier counts (16, 36, 67, 76 and 80 TypeScript tests; 35 and 38 Solidity tests), which belong to their own dated checkpoints and to the deployed commits.
+
+**Not established.** The embedded Studio Preview was observed working by an independent operator (17:58–18:01 UTC, 23 October: create form, draft total and wallet chooser only; no wallet connection, signing or transaction); the earlier "Connecting to sandbox" failure is dated history in [the rebuild record](docs/STUDIO-REIMPLEMENTATION-2026-10-23.md). That observation does not cover bill pages, mobile widths, connecting or signing with a real wallet, or a public browser. DOM-level checks used a simulated DOM (jsdom) with fake wallets and emulated RPC; they are not a real browser, a real wallet or a mobile-layout measurement, and the remaining real-browser, real-wallet and public-browser QA is pending. The mainnet fee setting caps the price per unit of gas; it is not a limit on the total fee. Product acceptance and any publication are to be done independently from the exported exact bytes; publication and public readback are a separate future gate. Nothing here claims that this candidate is published, uploaded, formally submitted or approved.
+
+**Mainnet evidence is unchanged.** Arc Mainnet Bill 1 at `0x8522Ea5A413c8402182fF6998Bd7471bAC886142` is settled 2/2 with two verified receipts. Both payers are owner-controlled demonstration accounts. The contract accepted 0.002 USDC in gross shares; the net transfer between the two wallets was 0.001 USDC. Historical deployment and demonstration Gas totalled 0.02263094 USDC. No new mainnet transaction or deployment was made during this rebuild or its recording. Details: [current mainnet status](docs/MAINNET-LIVE.md).
+
+## Mainnet status and history
+
+**Current:** Arc Mainnet (`5042`) is a separate page context (`?network=mainnet`). The only mainnet contract accepted is the reviewed deployment `0x8522Ea5A413c8402182fF6998Bd7471bAC886142` (block `27419618`, runtime hash `0x93454cc56d1f8531f7d506ff22ccbfeefe1b34913c0f688910ee2a20e7bfd18b`). Mainnet uses real USDC for payments and for gas; the app shows a notice, labels the buttons accordingly, and only asks your own wallet to sign. Existing Bill 1 can be read and its receipts verified without a wallet. See [current mainnet status](docs/MAINNET-LIVE.md).
+
+**Historical (21 October):** an earlier checkpoint kept a blank mainnet address and a compiled `MAINNET_WRITES_ENABLED = false` lock, before the contract was deployed. That lock and the statements about an undeployed mainnet in [mainnet preparation](docs/MAINNET-PREPARATION.md) describe that checkpoint only; the current build has no such flag, and the pinned runtime hash plus a fresh wallet check guard writes instead. The 21 October counts (67 and 76 TypeScript tests) also belong to that checkpoint, which mixed Studio work with externally prepared inputs; see [provenance](docs/PROVENANCE.md).
+
+No competition submission or eligibility is claimed by this README.

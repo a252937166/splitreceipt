@@ -118,7 +118,7 @@ The following are excluded from this estimate and may require additional funds:
 ## Study boundaries and later preparation
 
 - This study did not check a mainnet wallet balance, connect or fund a mainnet wallet, configure a live mainnet deployment, or broadcast a mainnet transaction.
-- Subsequent preparation added a separate, disabled mainnet app context and offline unsigned artifacts. The published application has no mainnet contract address and `MAINNET_WRITES_ENABLED = false`. These are not deployments or current fee estimates.
+- **Historical, as of 22 October:** subsequent preparation added a separate, disabled mainnet app context and offline unsigned artifacts. The then-published application had no mainnet contract address and `MAINNET_WRITES_ENABLED = false` (superseded on 23 October; see [MAINNET-LIVE.md](../MAINNET-LIVE.md)). These are not deployments or current fee estimates.
 - Bill 6 later completed two payments on the public Arc **Testnet** app. Its test-asset gas and principal do not update this historical mainnet model. See [the current evidence](../../tests/evidence/public-wallet-flow-2026-10-22.json).
 - A specific unsigned mainnet deployment draft must be independently reviewed and freshly estimated before any future deployment is authorized. This study uses historical testnet gas values as a proxy; a final estimate should use a specific reviewed mainnet transaction.
 - Exact gas prices are not guaranteed; obtain a fresh fee snapshot immediately before any mainnet transaction.

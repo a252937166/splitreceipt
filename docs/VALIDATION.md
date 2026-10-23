@@ -4,7 +4,26 @@
 
 This record distinguishes deterministic tests, mined chain evidence, local browser observations and public-site verification. The proof files below accompany this record; deployment results for individual source revisions are available in the [Actions history](https://github.com/a252937166/splitreceipt/actions/workflows/pages.yml).
 
-## Current public release and wallet-flow verification (21–22 October 2026)
+## Replacement-rebuild candidate: latest checks (23 October 2026)
+
+This section is added; every dated section below it keeps its own counts and boundaries. It covers the **candidate source in the Studio workspace**, not the deployed public release (application commit `00658175885a03f1fd49d61c56a2ce3ff2f86b82`, whose 80 TypeScript tests belong to that commit). The candidate has not been published, uploaded, formally submitted or approved. Context: the original Studio snapshot was restored, the older externally prepared wallet, receipt and core code was removed or quarantined, and the Studio AI reimplemented it in one thread with two independent review and repair rounds; see [the rebuild record](STUDIO-REIMPLEMENTATION-2026-10-23.md) and [provenance](PROVENANCE.md).
+
+| Check | Observed result at the end of this work | Boundary |
+| --- | --- | --- |
+| Typecheck | `tsc --noEmit` exit 0, no errors | Candidate source |
+| TypeScript tests | 320 tests in 20 files; 320 pass, 0 fail | Includes the regression suites for the final wallet-request boundary, Mainnet and Testnet fee fields, settlement and replacement outcomes, receipt recovery and proofs, the submission lock, epochs and write guards. Fake providers and mocked chains only |
+| Solidity | `forge test --offline`: 35 pass, 0 fail, including a 256-run fuzz test | Local EVM; contract unchanged |
+| Production build | `vite build` success; one chunk-size warning | |
+| Production bundle scan | Zero matches for Studio trace, console-capture, preview-bridge and preview-host markers and for fetch/wallet patching; no `window.ethereum` reference | Generic library `postMessage` uses are not instrumentation |
+| Dependency isolation | Independent: 215 registry packages, 0 external filesystem links, 0 unused service SDKs | |
+| Clean-source reproducibility | The suite also ran in a copy without `contracts/contract-metadata`, `contracts/out`, `dist`, `.env` and `.git`: 320 tests pass, with the ABI-parity test reading a committed ABI-only compiler fixture (see the rebuild record) | Added after an independent clean-source/CI check found an `ENOENT` on the generated Studio metadata |
+| Protected files | 7 of 7 SHA-256 values match the owner's list | Contract, contract test, `src/index.css`, `src/receiptDiscovery.ts`, `src/usdcFormat.ts`, `src/vite-env.d.ts`, `docs/DESIGN.md` |
+| DOM-level scripts (jsdom, fake wallet, emulated RPC) | Submission-lock and last-page-retry script: 26 of 26 assertions pass. Earlier scripts (wallet guard 32 of 32, payment outcomes 13 of 13) passed in the previous round and were not re-run after the final edits | Manual scripts; jsdom is not a project dependency |
+| Mutation checks | Removing the final-boundary guard fails 28 wallet-send tests; reverting the scanner or the round-2 fixes fails the recovery tests; disabling the lock check makes the jsdom script send a second request | Shows the regressions are sensitive |
+
+**Browser observation (independent operator, 23 October, 17:58–18:01 UTC).** After the earlier "Connecting to sandbox" failure (dated history, see the rebuild record), the official full Studio Preview pane loaded and the operator used the real app: title, recipient, two payer addresses and a share of 0.001 gave a draft total of 0.002; the wallet chooser opened listing Phantom, OKX and MetaMask; Tab focused an option; Escape closed it and restored focus to the trigger. No wallet was connected and nothing was signed or sent. The operator reports native continuous recordings (phases 7 and 8) preserve this; the agent has not reproduced or reviewed them. **Not verified.** Bill pages, wrong-context links, mobile layout measurement (375 or 390px), connecting or signing with a real wallet, a screen reader and any public browser were not covered. Server rendering, HTTP 200 and jsdom are not browser tests. Replacement detection was tested through a fake wait function, not a real replaced transaction. The Mainnet fee setting (40 gwei maximum fee per gas, zero priority) caps a price, not the total fee. No wallet request, signature, deployment, push, paid service or new mainnet transaction was made. Product acceptance and any publication are done independently from the exported exact bytes; publication and public readback remain a separate future gate.
+
+## Deployed public release and wallet-flow verification (21–22 October 2026; historical checkpoint)
 
 Application source `4dae47f01bb78126e5c70621d87af0c9899cb9c6`, dedicated-host release `20261021T192007Z-4dae47f`. Independent server-release, HTTPS/TLS, redirects and public asset readback matched four static files (652,054 bytes). [Exact application-commit CI](https://github.com/a252937166/splitreceipt/actions/runs/39660377061) passed install, dependency isolation, typecheck, tests and build. A future documentation-only commit is distinct from that deployed application source.
 
@@ -24,7 +43,7 @@ Application source `4dae47f01bb78126e5c70621d87af0c9899cb9c6`, dedicated-host re
 
 [Sanitized Bill 6 evidence](../tests/evidence/public-wallet-flow-2026-10-22.json) records all three exact transaction hashes, amounts, blocks, fees and observation limits. Total principal was 0.002 test USDC, gas 0.007650575 test USDC. Test tokens have no monetary value. The app's **Use this wallet** acknowledgement is not a wallet signature. The creator hash is derived from chain/scenario proof, not a fully visible hash in the saved creation-page screenshot.
 
-The mainnet context remains unconfigured with writes locked false. No mainnet deployment/payment, paid upgrade, public final-video URL or completed competition submission is established. [Readiness](submission/READINESS.md) tracks rule/provenance/form gaps.
+**Historical statement, as of 22 October:** the mainnet context was unconfigured with writes locked, and no mainnet deployment/payment, paid upgrade, public final-video URL or completed competition submission was established. The 23 October mainnet deployment and Bill 1 supersede the mainnet part; see [MAINNET-LIVE.md](MAINNET-LIVE.md). No public final-video URL or completed competition submission is established. [Readiness](submission/READINESS.md) tracks rule/provenance/form gaps.
 
 ## Historical records below
 
@@ -142,4 +161,4 @@ A rejected network-switch prompt was not exercised. Real post-broadcast nonce ac
 
 Primary demo: https://splitreceipt.axiqo.xyz/splitreceipt/; deployed application source `4dae47f01bb78126e5c70621d87af0c9899cb9c6`, release `20261021T192007Z-4dae47f`. The old GitHub Pages hostname and earlier `003f005` release are historical. The complete current public Bill 6 flow is recorded above; its first/second payments must not be replaced with Bill 3's older helper-paid history.
 
-Recordings remain private and no final public-video URL or contest submission is claimed. The [22 October rules check](https://dorahacks.io/hackathon/arc-microgrants-2/detail) requires Studio provenance and real mainnet operation; testnet success alone does not qualify. Mainnet writes remain disabled, mixed-history acceptance and Studio reviewer access are unresolved, and the actual form schema was not inspected after its Organizer Disclaimer was canceled. See [submission readiness](submission/READINESS.md) and [provenance](PROVENANCE.md).
+Recordings remain private and no final public-video URL or contest submission is claimed. The [22 October rules check](https://dorahacks.io/hackathon/arc-microgrants-2/detail) requires Studio provenance and real mainnet operation; testnet success alone does not qualify. As of 22 October mainnet writes were disabled (superseded on 23 October; see [MAINNET-LIVE.md](MAINNET-LIVE.md)). Mixed-history acceptance and Studio reviewer access are unresolved, and the actual form schema was not inspected after its Organizer Disclaimer was canceled. See [submission readiness](submission/READINESS.md) and [provenance](PROVENANCE.md).

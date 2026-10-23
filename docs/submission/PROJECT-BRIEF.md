@@ -6,7 +6,7 @@
 
 ## Short description
 
-SplitReceipt turns a shared bill into verifiable payment records on Arc Testnet. A creator chooses one recipient, two to five payers and an equal share. Each payer sends the exact native test-USDC amount through the contract, which forwards it to the recipient. The app recovers and rechecks payment receipts from the chain without a custodial backend or private indexer. Test USDC has no monetary value; there is no mainnet deployment.
+SplitReceipt turns a shared bill into verifiable payment records on Arc Testnet (22 October description; a separate Arc Mainnet context for one reviewed contract exists since 23 October, see [MAINNET-LIVE.md](../MAINNET-LIVE.md)). A creator chooses one recipient, two to five payers and an equal share. Each payer sends the exact native test-USDC amount through the contract, which forwards it to the recipient. The app recovers and rechecks payment receipts from the chain without a custodial backend or private indexer. Test USDC has no monetary value; as of 22 October there was no mainnet deployment (historical; superseded on 23 October by the verified deployment and Bill 1 in [MAINNET-LIVE.md](../MAINNET-LIVE.md)).
 
 ## Product value
 

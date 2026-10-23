@@ -14,11 +14,11 @@ I am preparing SplitReceipt for this round and want to clarify the Studio requir
 
 - Studio project: https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62
 - Public source: https://github.com/a252937166/splitreceipt
-- Current public app: https://splitreceipt.axiqo.xyz/splitreceipt/ (Arc Testnet only)
+- Current public app: https://splitreceipt.axiqo.xyz/splitreceipt/ (Arc Testnet only as of 22 October; a reviewed Arc Mainnet context exists since 23 October, see [MAINNET-LIVE.md](../MAINNET-LIVE.md))
 
 The contract and original app began in Arc Studio. Some earlier dependency isolation, wallet/receipt handling, delivery work and UI refinements were authored locally and later synchronized back. Later UI and receipt-discovery work was authored in Studio. More recent mainnet-preparation and explicit-wallet-session inputs were prepared with Codex outside Studio, then actually written and tested through Studio's official manual terminal. We retained exact terminal/per-file hash readback; those records do not establish that all source was authored by Studio AI.
 
-The original Studio deployment route hit a policy limit, so the unchanged contract was deployed with a separate test-only wallet. The exported static app is hosted externally. We have genuine testnet creation/two-payment/receipt evidence, but no mainnet deployment or payment, and understand testnet evidence alone does not qualify. On 21 October, actual Studio testing included 76 TypeScript tests and the separate preparation's 38 Solidity tests with 256 fuzz runs; chain-5042 cases were local EVM tests, not mainnet.
+The original Studio deployment route hit a policy limit, so the unchanged contract was deployed with a separate test-only wallet. The exported static app is hosted externally. We have genuine testnet creation/two-payment/receipt evidence, but, as of 22 October, no mainnet deployment or payment (superseded on 23 October; see [MAINNET-LIVE.md](../MAINNET-LIVE.md)), and understand testnet evidence alone does not qualify. On 21 October, actual Studio testing included 76 TypeScript tests and the separate preparation's 38 Solidity tests with 256 fuzz runs; chain-5042 cases were local EVM tests, not mainnet.
 
 Would this mixed authorship satisfy the round's Studio requirement, or would locally/Codex-authored portions need a different permitted Studio or CLI workflow? Does later synchronization count at all, and if so what evidence is needed? Also, may a Studio-authored contract be deployed from a self-custodied wallet and its exported app hosted externally? How should we provide reviewer access to the Studio project?
 

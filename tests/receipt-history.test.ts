@@ -1,186 +1,112 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
-import {
-  confirmedPaymentHash,
-  historyRangeComplete,
-  newReceiptHistory,
-  receiptScopeKey,
-  scanReceiptHistoryBatch,
-  type PaymentSnapshot,
-  type ReceiptHash,
-  type SharePaidLog,
-} from '../src/receiptHistory.ts'
+import { describe, it } from 'node:test'
+import { scanSharePaidPage, startHistoryCursor, type HistoryCursor } from '../src/receiptHistory.ts'
+import { CONTRACT, PAYER_A, PAYER_B, addr, hash } from './fixtures.ts'
 
-const contract = '0x1111111111111111111111111111111111111111'
-const payerA = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-const payerB = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-const payerC = '0xcccccccccccccccccccccccccccccccccccccccc'
-const scope = { chainId: 5042002, contract, billId: 7n }
-const hash = (id: number) => `0x${id.toString(16).padStart(64, '0')}` as ReceiptHash
-const event = (payer: string, blockNumber: bigint, id: number): SharePaidLog => ({
-  address: contract,
-  args: { billId: scope.billId, payer, amount: 1_000_000n },
-  transactionHash: hash(id), blockNumber,
-})
-const pick = (logs: SharePaidLog[], range: { fromBlock: bigint; toBlock: bigint }) =>
-  logs.filter(log => log.blockNumber !== null && log.blockNumber >= range.fromBlock && log.blockNumber <= range.toBlock)
+const scope = { chainId: 5042002, contract: CONTRACT, billId: 7n }
 
-test('history beyond 50,000 blocks continues without repeating or losing any successful page', async () => {
-  const requests: { fromBlock: bigint; toBlock: bigint }[] = []
-  const logs = [event(payerA, 125_000n, 1), event(payerB, 10n, 2)]
-  const options = {
-    head: 150_000n, payers: [payerA, payerB], paidPayers: [payerA, payerB], amount: 1_000_000n,
-    fetchLogs: async (range: { fromBlock: bigint; toBlock: bigint }) => {
-      requests.push(range)
-      return pick(logs, range)
-    },
+interface Range { fromBlock: bigint; toBlock: bigint }
+function logClient(entries: { block: bigint; payer: string; hash: string }[], failOnCall?: number) {
+  const ranges: Range[] = []
+  let n = 0
+  return {
+    ranges,
+    client: {
+      getBlockNumber: async () => 1_000n,
+      getLogs: async (a: Range & { args: { billId: bigint } }) => {
+        n++
+        if (failOnCall === n) throw new Error('range too large')
+        ranges.push({ fromBlock: a.fromBlock, toBlock: a.toBlock })
+        assert.equal(a.args.billId, 7n)
+        return entries
+          .filter((e) => e.block >= a.fromBlock && e.block <= a.toBlock)
+          .map((e) => ({ transactionHash: e.hash, args: { payer: e.payer }, removed: false }))
+      },
+    } as never,
   }
-  const first = await scanReceiptHistoryBatch({ ...options, history: newReceiptHistory(scope, 10n) })
-  assert.equal(first.reason, 'page-limit')
-  assert.equal(first.history.scannedFrom, 100_001n)
-  assert.deepEqual(first.history.receipts, { [payerA]: hash(1) })
-  const second = await scanReceiptHistoryBatch({ ...options, history: first.history })
-  assert.equal(second.reason, 'page-limit')
-  assert.equal(second.history.scannedFrom, 50_001n)
-  const third = await scanReceiptHistoryBatch({ ...options, history: second.history })
-  assert.equal(third.reason, 'receipts-found')
-  assert.deepEqual(third.history.receipts, { [payerA]: hash(1), [payerB]: hash(2) })
-  assert.equal(historyRangeComplete(third.history), true)
-  assert.equal(requests.length, 75)
-  for (let index = 1; index < requests.length; index++) {
-    assert.equal(requests[index].toBlock + 1n, requests[index - 1].fromBlock)
-  }
-  assert.equal(requests.at(-1)?.fromBlock, 10n)
-})
+}
 
-test('refresh first searches new blocks, then resumes older history; known paid receipts avoid rescanning', async () => {
-  const initial = await scanReceiptHistoryBatch({
-    history: newReceiptHistory(scope, 0n), head: 150_000n,
-    payers: [payerA, payerB], paidPayers: [payerA, payerB], amount: 1_000_000n,
-    maxPages: 1, fetchLogs: async () => [event(payerA, 149_999n, 1)],
+describe('startHistoryCursor', () => {
+  it('uses the deployment block as floor when known', async () => {
+    const c = await startHistoryCursor({ getBlockNumber: async () => 1_000n } as never, 100n)
+    assert.deepEqual(c, { nextTo: 1_000n, floor: 100n, done: false })
   })
-  const requests: { fromBlock: bigint; toBlock: bigint }[] = []
-  const refreshed = await scanReceiptHistoryBatch({
-    history: initial.history, head: 150_010n,
-    payers: [payerA, payerB], paidPayers: [payerA, payerB], amount: 1_000_000n,
-    fetchLogs: async range => { requests.push(range); return [event(payerB, 150_005n, 2)] },
-  })
-  assert.deepEqual(requests, [{ fromBlock: 150_001n, toBlock: 150_010n }])
-  assert.equal(refreshed.history.scannedFrom, 148_001n)
-  assert.equal(refreshed.history.scannedTo, 150_010n)
-  assert.equal(refreshed.reason, 'receipts-found')
-  assert.equal(historyRangeComplete(refreshed.history), false)
-  await scanReceiptHistoryBatch({
-    history: refreshed.history, head: 150_100n,
-    payers: [payerA, payerB], paidPayers: [payerA, payerB], amount: 1_000_000n,
-    fetchLogs: async () => { assert.fail('verified immutable payment receipts must not be rescanned') },
+  it('falls back to a bounded lookback, never block 0 of a deep chain', async () => {
+    const c = await startHistoryCursor({ getBlockNumber: async () => 100_000_000n } as never, null, 50_000n)
+    assert.equal(c.floor, 100_000_000n - 50_000n)
   })
 })
 
-test('a failed page retains earlier receipts and retries the exact uncommitted range', async () => {
-  const attempts: { fromBlock: bigint; toBlock: bigint }[] = []
-  const first = await scanReceiptHistoryBatch({
-    history: newReceiptHistory(scope, 0n), head: 8_000n,
-    payers: [payerA, payerB], paidPayers: [payerA, payerB], amount: 1_000_000n,
-    fetchLogs: async range => {
-      attempts.push(range)
-      if (attempts.length === 2) throw new Error('temporary RPC failure')
-      return [event(payerA, 7_000n, 1)]
-    },
-  })
-  assert.equal(first.reason, 'error')
-  assert.match(first.error!.message, /temporary RPC failure/)
-  assert.equal(first.history.scannedFrom, 6_001n)
-  assert.equal(first.history.receipts[payerA], hash(1))
-  const retry = await scanReceiptHistoryBatch({
-    history: first.history, head: 8_000n,
-    payers: [payerA, payerB], paidPayers: [payerA, payerB], amount: 1_000_000n,
-    fetchLogs: async range => { attempts.push(range); return [event(payerB, 5_000n, 2)] },
-  })
-  assert.deepEqual(attempts[1], attempts[2])
-  assert.equal(retry.reason, 'receipts-found')
-  assert.deepEqual(retry.history.receipts, { [payerA]: hash(1), [payerB]: hash(2) })
-})
+describe('scanSharePaidPage', () => {
+  const cursor: HistoryCursor = { nextTo: 1_000n, floor: 100n, done: false }
 
-test('inclusive page boundaries and missing deployment block can reach genesis exactly once', async () => {
-  const requests: { fromBlock: bigint; toBlock: bigint }[] = []
-  const logs = [event(payerA, 2_001n, 1), event(payerB, 2_000n, 2), event(payerC, 0n, 3)]
-  const result = await scanReceiptHistoryBatch({
-    history: newReceiptHistory(scope, null), head: 4_000n,
-    payers: [payerA, payerB, payerC], paidPayers: [payerA, payerB, payerC], amount: 1_000_000n,
-    fetchLogs: async range => { requests.push(range); return pick(logs, range) },
+  it('pages downward in bounded ranges and stops at the floor', async () => {
+    const { client, ranges } = logClient([])
+    const r = await scanSharePaidPage(client, scope, cursor, { pageBlocks: 400n, maxPages: 10 })
+    assert.equal(r.cursor.done, true)
+    assert.deepEqual(ranges, [
+      { fromBlock: 601n, toBlock: 1_000n },
+      { fromBlock: 201n, toBlock: 600n },
+      { fromBlock: 100n, toBlock: 200n },
+    ])
   })
-  assert.deepEqual(requests, [
-    { fromBlock: 2_001n, toBlock: 4_000n },
-    { fromBlock: 1n, toBlock: 2_000n },
-    { fromBlock: 0n, toBlock: 0n },
-  ])
-  assert.equal(result.history.floor, 0n)
-  assert.equal(historyRangeComplete(result.history), true)
-  assert.equal(Object.keys(result.history.receipts).length, 3)
-})
 
-test('only exact contract/bill/payer/amount/nonremoved logs in the requested range count as receipts', async () => {
-  const valid = event(payerA, 2n, 1)
-  const invalid: SharePaidLog[] = [
-    { ...event(payerB, 2n, 2), address: payerC },
-    { ...event(payerB, 2n, 2), args: { billId: 8n, payer: payerB, amount: 1_000_000n } },
-    { ...event(payerB, 2n, 2), args: { billId: 7n, payer: payerB, amount: 999n } },
-    { ...event(payerB, 2n, 2), removed: true },
-    event(payerC, 2n, 3),
-    event(payerB, 10n, 2),
-    { ...event(payerB, 2n, 2), transactionHash: null },
-  ]
-  const result = await scanReceiptHistoryBatch({
-    history: newReceiptHistory(scope, 1n), head: 3n,
-    payers: [payerA, payerB], paidPayers: [payerA, payerB], amount: 1_000_000n,
-    fetchLogs: async () => [valid, valid, ...invalid],
+  it('collects deduplicated lowercase candidates', async () => {
+    const dup = hash(1)
+    const { client } = logClient([
+      { block: 900n, payer: PAYER_A.toUpperCase().replace('0X', '0x'), hash: dup },
+      { block: 900n, payer: PAYER_A, hash: dup },
+      { block: 300n, payer: PAYER_B, hash: hash(2) },
+    ])
+    const r = await scanSharePaidPage(client, scope, cursor, { pageBlocks: 400n })
+    assert.equal(r.candidates.length, 2)
+    assert.equal(r.candidates[0].payer, PAYER_A.toLowerCase())
   })
-  assert.deepEqual(result.history.receipts, { [payerA]: hash(1) })
-  assert.equal(result.reason, 'range-complete')
-})
 
-test('different transaction hashes for one payer produce an error instead of choosing a receipt', async () => {
-  const result = await scanReceiptHistoryBatch({
-    history: newReceiptHistory(scope, 1n), head: 3n,
-    payers: [payerA, payerB], paidPayers: [payerA, payerB], amount: 1_000_000n,
-    fetchLogs: async () => [event(payerA, 2n, 1), event(payerA, 3n, 2)],
+  it('pauses early (not done) once every MISSING payer has a candidate', async () => {
+    const { client, ranges } = logClient([
+      { block: 950n, payer: PAYER_A, hash: hash(1) },
+      { block: 940n, payer: PAYER_B, hash: hash(2) },
+    ])
+    const r = await scanSharePaidPage(client, scope, cursor, { pageBlocks: 100n, missingPayers: [PAYER_A, PAYER_B] })
+    assert.equal(ranges.length, 1)
+    assert.equal(r.candidates.length, 2)
   })
-  assert.equal(result.reason, 'error')
-  assert.match(result.error!.message, /conflicting/)
-  assert.deepEqual(result.history.receipts, {})
-  assert.equal(result.history.scannedFrom, null)
-})
 
-test('navigation cancels an in-flight page before it can publish into another bill', async () => {
-  let cancelled = false
-  let published = 0
-  const result = await scanReceiptHistoryBatch({
-    history: newReceiptHistory(scope, 1n), head: 3n,
-    payers: [payerA], paidPayers: [payerA], amount: 1_000_000n,
-    isCancelled: () => cancelled,
-    onPage: () => { published++ },
-    fetchLogs: async () => { cancelled = true; return [event(payerA, 2n, 1)] },
+  it('respects maxPages and leaves a resumable cursor', async () => {
+    const { client } = logClient([])
+    const r = await scanSharePaidPage(client, scope, cursor, { pageBlocks: 100n, maxPages: 2 })
+    assert.equal(r.pagesScanned, 2)
+    assert.equal(r.cursor.done, false)
+    assert.equal(r.cursor.nextTo, 800n)
   })
-  assert.equal(result.reason, 'cancelled')
-  assert.equal(published, 0)
-  assert.deepEqual(result.history.receipts, {})
-  assert.notEqual(receiptScopeKey(scope), receiptScopeKey({ ...scope, billId: 8n }))
-  assert.notEqual(receiptScopeKey(scope), receiptScopeKey({ ...scope, chainId: 5042 }))
-  assert.notEqual(receiptScopeKey(scope), receiptScopeKey({ ...scope, contract: payerA }))
-  assert.equal(receiptScopeKey(scope), receiptScopeKey({ ...scope, contract: contract.toUpperCase() }))
-})
 
-test('wallet replacements use the final mined hash; cancellation, revert and cross-wallet/bill events cannot confirm', () => {
-  const pending: PaymentSnapshot = { ...scope, payer: payerA, amount: 1_000_000n, submittedHash: hash(1) }
-  const receipt = { status: 'success' as const, transactionHash: hash(99), logs: [event(payerA, 2n, 99)] }
-  assert.equal(confirmedPaymentHash(pending, hash(1), receipt), hash(99))
-  assert.equal(confirmedPaymentHash(pending, hash(1), { ...receipt, status: 'reverted' }), null)
-  assert.equal(confirmedPaymentHash(pending, hash(1), { ...receipt, logs: [] }), null)
-  assert.equal(confirmedPaymentHash(pending, hash(1), { ...receipt, logs: [event(payerB, 2n, 99)] }), null)
-  assert.equal(confirmedPaymentHash({ ...pending, billId: 8n }, hash(1), receipt), null)
-  assert.equal(confirmedPaymentHash({ ...pending, contract: payerC }, hash(1), receipt), null)
-  assert.equal(confirmedPaymentHash({ ...pending, amount: 1n }, hash(1), receipt), null)
-  assert.equal(confirmedPaymentHash(pending, hash(2), receipt), null)
-  assert.equal(confirmedPaymentHash({ ...pending, submittedHash: undefined }, hash(1), receipt), null)
+  it('an RPC failure does not advance past the failed page and reports an error', async () => {
+    const { client } = logClient([], 2)
+    const r = await scanSharePaidPage(client, scope, cursor, { pageBlocks: 100n, maxPages: 5 })
+    assert.ok(r.error)
+    assert.equal(r.pagesScanned, 1)
+    assert.equal(r.cursor.nextTo, 900n)
+    assert.equal(r.cursor.done, false)
+  })
+
+  it('does nothing when already done', async () => {
+    const { client, ranges } = logClient([])
+    const r = await scanSharePaidPage(client, scope, { ...cursor, done: true })
+    assert.equal(ranges.length, 0)
+    assert.equal(r.pagesScanned, 0)
+  })
+
+  it('ignores removed logs and logs without identity', async () => {
+    const client = {
+      getBlockNumber: async () => 1_000n,
+      getLogs: async () => [
+        { transactionHash: hash(5), args: { payer: addr(9) }, removed: true },
+        { transactionHash: null, args: { payer: addr(9) }, removed: false },
+        { transactionHash: hash(6), args: {}, removed: false },
+      ],
+    } as never
+    const r = await scanSharePaidPage(client, scope, { nextTo: 200n, floor: 100n, done: false }, { pageBlocks: 1_000n })
+    assert.equal(r.candidates.length, 0)
+  })
 })
