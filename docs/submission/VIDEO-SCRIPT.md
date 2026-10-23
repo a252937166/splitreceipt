@@ -1,47 +1,44 @@
-# Video script — testnet preparation walkthrough
+# Video plan — testnet evidence and missing final scenes
 
-**Purpose:** Narration and scene guide for a roughly 2-minute testnet walkthrough video. This is a preparation document, not a finished recording. The existing private material (18 screenshots sourced 2026-10-21 03:07:44–07:27:21 UTC, waits compressed, silent, no native wallet) is not an actual 54-second continuous walkthrough capture; it does not substitute for a final eligible video because it lacks the required mainnet segment. The official contest page does not state a required continuous-session format; verify recording requirements before shooting.
+> **23 October 2026 update:** Arc Mainnet contract deployment is now verified. See [current mainnet status and evidence](../MAINNET-LIVE.md) for the exact source-pinned deployment, live application/receipt status, fees and remaining submission work. Deployment and wallet funding alone are not a through-application payment. The dated Testnet/preparation material below is retained as historical evidence; its statements about an undeployed or disabled mainnet describe that earlier checkpoint. No competition submission or eligibility acceptance is claimed.
 
-**Editorial note on duration:** Approximately 2 minutes is a reasonable preparation target. No official minimum or maximum duration has been confirmed from the contest rules; verify before recording.
+**Draft storyboard, not a finished competition video.** The official details page, rechecked on 22 October, requires a walkthrough showing the build in Studio and a mainnet transaction. It states no explicit minimum/maximum duration, resolution or continuous-session format. The underlying form has not been inspected; do not invent a format waiver or requirement.
 
----
+## Existing material that can be reused accurately
 
-## Scene table
+The latest private file is `SplitReceipt-Studio-public-wallet-release-testnet-sampled-20261022.mp4` (SHA-256 `144b70d5cb3d072a9710ce2de0f6ee9dd0e63ddfe6487c32e14b9142ae4601a4`). It is 63 seconds, silent, 1080p/30fps, assembled from 21 manually captured public-page milestone screenshots with waits compressed. Media QA is complete; it has not been uploaded. Its capture window spans 21–22 October, not a continuous 63-second live session.
 
-| # | Scene | Narration | Notes |
-|---|---|---|---|
-| 1 | Title card: "SplitReceipt — Arc Testnet walkthrough" | "SplitReceipt lets a group of friends split a bill and get a verified receipt for every payment — directly from the blockchain, no backend needed." | Static card, 5s |
-| 2 | Arc Studio project — contract source open | "The Solidity contract was authored in Arc Studio. The latest UI and receipt-discovery logic were also authored there. Earlier local refinements were synchronized back; provenance is mixed — see the repository's PROVENANCE.md for the full record." | Show SplitReceipt.sol, highlight `payShare` function |
-| 3 | Test evidence (historical) | "35 Solidity tests and 256 fuzz runs were verified by independent local tooling on 17 October 2026 — these are historical logs, not a Studio Foundry run. Contract source is unchanged. 36 TypeScript frontend tests are the current CI record." | Show existing dated local test logs; do not present a new run or imply Studio ran the Foundry suite |
-| 4 | Open live app — Create bill page | "On the live app, a group member opens Create bill, enters a title, recipient, the payer addresses and the per-person share." | Type a bill title; add two payer addresses; enter 0.001 USDC share; show the live draft receipt preview updating |
-| 5 | Create bill — review only, do not submit | "This is a draft. I won't submit this transaction during this recording — no funds are involved in this walkthrough." | Move mouse to Create button but do not click. Show "Draft" badge on preview. |
-| 6 | Navigate to Demo receipt — bill 3 | "Here is a real settled bill on Arc Testnet. Both shares have been paid." | Open `?bill=3`. Show Settled badge, 2/2 paid, progress bar full. |
-| 7 | Receipt links — expand verification detail | "The app recovers verified receipts from the blockchain. Each one is checked against the live RPC: chain ID, block height, canonical block hash, and the exact SharePaid event." | Click "View receipt" for payer 1. Show collapsible verification detail. |
-| 8 | Explorer — open pay 1 transaction | "Here is payer 1's transaction on the Arc Testnet explorer. Status: Success. 0.001 USDC sent, forwarded to the recipient." | Show explorer page for `0xc0d0e3…` |
-| 9 | Back to app — refresh / retry receipt history | "If the app loses its receipt history, the Refresh button re-verifies from known hashes first, then scans the contract's event log in bounded pages." | Click Refresh. Wait for 2/2 verified badge to reappear. |
-| 10 | Wallet checks page | "The Wallet checks page explains exactly what each transaction sends: a wallet transaction confirmation is required for each payment, but there is no ERC-20 approval step — just a single native USDC transfer." | Show WalletChecks page, expand the "What pay sends" section. |
-| 11 | Title card: "Mainnet — not yet recorded" | "A final eligible video will include deploying to Arc mainnet, making a real USDC payment, and verifying it on the mainnet explorer. That segment is pending." | Static card, 5s |
+The sequence includes public release/page checks, historical Bills 3 and 5, Bill 6 creation 0/2, payment 1 reaching 1/2, explicit session acknowledgement after changing account, payment 2 reaching 2/2 and two verified receipts, then app Disconnect/reload. It records app requests/results, not native wallet confirmations. It includes no Studio editing or new Studio-AI generation. Do not overlay a fictional signature, Studio activity or mainnet transaction onto it.
 
----
+The earlier 54-second/18-screenshot material is separate historical footage. [LOCAL-ASSETS.md](LOCAL-ASSETS.md) records availability and limitations.
 
-## Caption / description draft
+## Future final walkthrough — proposed structure
 
-> **SplitReceipt** — Shared bills with recoverable USDC payment receipts.
->
-> Built in Arc Studio on Arc Testnet. The Solidity contract accepts native USDC with no ERC-20 approval step and forwards each share directly to the recipient. Receipt recovery verifies each payment hash against a live RPC chain of custody before showing it.
->
-> This video shows the testnet build. A mainnet deployment and real USDC transfer are required to complete the submission.
->
-> Source: https://github.com/a252937166/splitreceipt
-> Live demo: https://splitreceipt.axiqo.xyz/splitreceipt/?bill=3
-> Studio: https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62
+This table is a plan. Missing scenes must be genuinely captured, with source/privacy review, before they can be described as recorded. A target around two minutes is editorial only.
 
----
+| Scene | Proposed narration | Actual evidence / missing action |
+| --- | --- | --- |
+| 1. Problem and scope | “SplitReceipt puts a shared bill and each payer's verified receipt in one link.” | Show real public app; label the current example Arc Testnet. No outside-customer claim. |
+| 2. Studio project and contract | “The contract and original app began in Studio. Earlier local refinements were synchronized. More recent Codex-prepared inputs were applied through Studio's official terminal; the repository records that mixed history.” | Capture actual Studio source/test work or clearly dated existing genuine Studio material. The current 63-second segment contains none. |
+| 3. Tests | “On 21 October, Studio and independent local checks passed 76 TypeScript tests. The preparation also passed 38 Solidity tests with 256 fuzz runs.” | Label old logs by date; if rerun, capture actual invocation/result. Local-EVM chain-5042 tests are not mainnet execution. |
+| 4. Testnet product flow | “A creator records a recipient, two to five payers and an exact share. Each payment goes through the contract to the recipient.” | Existing Bill 6 milestones can be shown with a visible sampled/waits-compressed label. Do not imply native signing footage. |
+| 5. Receipt recovery | “The app checks successful receipts, canonical blocks and exact payment events, then falls back to bounded history scans.” | Show Bill 6's two receipt links and real testnet explorer evidence. A paid count is separate from receipt verification. |
+| 6. Required mainnet operation | “This transaction moves USDC through the deployed contract and public app on Arc mainnet.” | **MISSING.** No deployment/address/payment exists. Only after separate authorization, review and genuine owner signatures could a real scene be recorded. Keep all current mainnet writes locked. |
+| 7. Mainnet explorer | “Here are the actual mainnet contract address and successful payment transaction.” | **MISSING.** Show independently verified real mainnet receipt/event. Never use Bill 6 or a local-EVM test as a stand-in. |
+| 8. Close with links and limits | “Source, Studio project and live app are linked; this prototype is unaudited.” | Confirm reviewer access and public video playback before form submission. Mixed-provenance acceptance remains a separate gate. |
 
-## What this script does not include
+## Caption for the existing sampled record, if later published
 
-- No wallet connection or signing during the Create bill scene.
-- No new transaction sent during recording.
-- No mainnet segment — this remains unrecorded.
-- The existing private material (18 screenshots, compressed waits, silent) is retained locally and is not uploaded. It lacks the required mainnet segment and is not a continuous walkthrough capture.
-- No public video URL to claim until recording and upload are complete.
+> SplitReceipt — Arc Testnet public-wallet retest. This silent 63-second supporting record uses 21 real milestone screenshots with waits compressed. Bill 6 reached 2/2 paid and 2/2 verified receipts, including a disconnected reload in the same profile. Test USDC has no monetary value. No Studio source editing, native wallet signing or mainnet activity is shown. The source record discloses mixed Studio/local development. This is not the final competition walkthrough.
+
+Source: https://github.com/a252937166/splitreceipt
+
+Live testnet Bill 6: https://splitreceipt.axiqo.xyz/splitreceipt/?network=testnet&chainId=5042002&contract=0x6996d66f6f74802a644e1e52c6d771a4d5c6ad26&bill=6
+
+Studio project: https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62 (independent reviewer access unconfirmed).
+
+## Before a final video URL is used
+
+Verify all scenes against actual evidence, keep testnet/mainnet labels visible, remove visible credentials/unrelated account content, distinguish recorded signatures from owner reports and obtain any required permission for public media. The owner reported no warning for Bill 6 creation and payment 2; payment 1's native signature/warning was not observed. Do not say every wallet warning or extension error was fixed.
+
+A public video URL is **NOT_AVAILABLE**. An upload, anonymous playback, required Studio/mainnet coverage, actual form requirements and final submission are separate checks. No upload, paid service or mainnet operation is performed by this plan.

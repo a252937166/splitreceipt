@@ -5,6 +5,7 @@ import { ExternalLink, CheckCircle, AlertCircle, Plus, Trash2, Info, Shield } fr
 import { SPLIT_RECEIPT_ABI } from '../splitReceiptContract'
 import { activeNetwork } from '../activeNetwork'
 import { getWriteBlockReason } from '../networkContext'
+import { transactionFeeFields } from '../mainnetDeployment'
 import { useDeploymentReadiness } from '../useDeploymentReadiness'
 import { useActionScope } from '../useActionScope'
 import { checkScopedWrite } from '../actionScope'
@@ -153,7 +154,7 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
       functionName: 'createBill',
       connector: walletSnapshot.connector, account: walletSnapshot.account,
       args: [title.trim(), recipient as `0x${string}`, payers as `0x${string}`[], shareWei],
-      chainId: activeNetwork.chainId,
+      chainId: activeNetwork.chainId, ...transactionFeeFields(activeNetwork),
     }, { onSuccess(hash) { request.hash = hash }, onError() { writeLock.current = false; if (submitted.current === request) submitted.current = null } })
   }
 
@@ -482,18 +483,18 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
                     cursor: 'not-allowed',
                   }}
                 >
-                  {activeNetwork.isTestnet ? 'Connect wallet to continue' : 'Mainnet transactions disabled'}
+                  {activeNetwork.isTestnet || activeNetwork.mainnetWritesEnabled ? 'Connect wallet to continue' : 'Mainnet transactions disabled'}
                 </button>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={isWrongChain ? () => switchChain({ chainId: activeNetwork.chainId }) : handleCreate}
-                disabled={!explicitlySelected || isBusy || writeLock.current || isSwitching || !isContractDeployed || (!isWrongChain && Boolean(writeBlockReason)) || !activeNetwork.isTestnet}
+                disabled={!explicitlySelected || isBusy || writeLock.current || isSwitching || !isContractDeployed || (!isWrongChain && Boolean(writeBlockReason)) || (!activeNetwork.isTestnet && !activeNetwork.mainnetWritesEnabled)}
                 className="btn-primary"
                 aria-busy={isBusy || isSwitching}
               >
-                {!activeNetwork.isTestnet ? 'Mainnet transactions disabled'
+                {!activeNetwork.isTestnet && !activeNetwork.mainnetWritesEnabled ? 'Mainnet transactions disabled'
                   : checkingWrite ? 'Verifying deployment…'
                   : isWrongChain ? isSwitching ? 'Switching network…' : `Switch to ${activeNetwork.name}`
                   : isPending ? 'Confirm in wallet…'
@@ -593,7 +594,7 @@ export default function CreateBill({ onBillCreated, onViewDemo }: CreateBillProp
               style={{ background: 'var(--info-bg)', color: 'var(--info-ink)', border: '1px solid var(--info-border)' }}
             >
               <Info size={13} style={{ flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
-              <span>{activeNetwork.isTestnet ? 'Arc Testnet only. USDC here has no real-world value.' : 'Arc Mainnet uses real USDC. Deployment is not configured and all mainnet transactions are disabled.'}</span>
+              <span>{activeNetwork.isTestnet ? 'Arc Testnet only. USDC here has no real-world value.' : activeNetwork.mainnetWritesEnabled ? 'Arc Mainnet uses real USDC. Review the recipient, payers, share and network before confirming in your wallet. Gas is charged separately.' : 'Arc Mainnet uses real USDC. This deployment has not been enabled for transactions.'}</span>
             </div>
           </div>
       </div>

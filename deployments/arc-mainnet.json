@@ -1,0 +1,22 @@
+{
+  "chainId": 5042,
+  "rpc": "https://rpc.mainnet.arc.io",
+  "contract": "0x8522Ea5A413c8402182fF6998Bd7471bAC886142",
+  "deploymentBlock": "27419618",
+  "deploymentHash": "0x65f5a438a7a7e7dd068e53a7fd06e5af02f733dc25f4c250178425c1da00962f",
+  "runtimeCodeHash": "0x93454cc56d1f8531f7d506ff22ccbfeefe1b34913c0f688910ee2a20e7bfd18b",
+  "creationBytecodeKeccak256": "0x3567c68a5c8948afa140c568e73cc6baffbe66d4ec713b85e8fa65461ac2a6f5",
+  "sourceHash": "0xd8e26dac4e5bf1066753ee02539f6427d229819c87e8f513608d9bc0bd3a2670",
+  "reentrancyGuardHash": "0x11a5a79827df29e915a12740caf62fe21ebe27c08c9ae3e09abe9ee3ba3866d3",
+  "compiler": "0.8.28+commit.7893614a",
+  "evmVersion": "paris",
+  "optimizerRuns": 200,
+  "nativeDecimals": 18,
+  "initialState": {
+    "billCount": "0",
+    "reentrancyGuardSlot0": "1"
+  },
+  "deploymentGasUSDC": "0.01532992",
+  "applicationPaymentStatus": "NOT_YET_VERIFIED",
+  "provenance": "Original Solidity created in Arc Studio. Reviewed compiler artifact deployed by the owner using the local owner-confirmed CLI; not a Studio Contracts-panel deployment or an application payment. Canonical deployment readback is required before this record is adopted. Wallet funding is not through-application payment evidence."
+}

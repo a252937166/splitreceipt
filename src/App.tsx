@@ -5,7 +5,7 @@ import CreateBill from './components/CreateBill'
 import BillDetails from './components/BillDetails'
 import WalletChecks from './components/WalletChecks'
 import { activeNetwork } from './activeNetwork'
-import { isCurrentLocationContext } from './networkContext'
+import { isCurrentLocationContext, MAINNET_WRITES_ENABLED } from './networkContext'
 import { buildNetworkNavigationUrl } from './networkNavigation'
 
 type View =
@@ -102,7 +102,7 @@ export default function App() {
 
   function isActive(kind: 'create' | 'demo' | 'checks') {
     if (kind === 'create') return view.kind === 'create'
-    if (kind === 'demo')   return view.kind === 'details' && (view as { kind: 'details'; billId: bigint }).billId === DEMO_BILL_ID
+    if (kind === 'demo')   return activeNetwork.isTestnet && view.kind === 'details' && (view as { kind: 'details'; billId: bigint }).billId === DEMO_BILL_ID
     return view.kind === 'checks'
   }
 
@@ -122,7 +122,7 @@ export default function App() {
           <path d="M8 5v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
           <circle cx="8" cy="11.5" r="0.75" fill="currentColor"/>
         </svg>
-        <span>{activeNetwork.isTestnet ? 'Arc Testnet · Test USDC only · No real funds' : 'Arc Mainnet · Real USDC · Transactions disabled'}</span>
+        <span>{activeNetwork.isTestnet ? 'Arc Testnet · Test USDC only · No real funds' : activeNetwork.mainnetWritesEnabled ? 'Arc Mainnet · Real USDC · Wallet confirmation required' : 'Arc Mainnet · Real USDC · Transactions disabled'}</span>
         <label className="sr-only" htmlFor="app-network">App network</label>
         <select
           id="app-network"
@@ -133,7 +133,7 @@ export default function App() {
           aria-label="App network"
         >
           <option value="testnet">Arc Testnet</option>
-          <option value="mainnet">Arc Mainnet · preview</option>
+          <option value="mainnet">{MAINNET_WRITES_ENABLED ? 'Arc Mainnet' : 'Arc Mainnet · preview'}</option>
         </select>
       </div>
 

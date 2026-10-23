@@ -1,8 +1,10 @@
 # SplitReceipt — mainnet preparation
 
+> **23 October 2026 update:** Arc Mainnet contract deployment is now verified. See [current mainnet status and evidence](MAINNET-LIVE.md) for the exact source-pinned deployment, live application/receipt status, fees and remaining submission work. Deployment and wallet funding alone are not a through-application payment. The dated Testnet/preparation material below is retained as historical evidence; its statements about an undeployed or disabled mainnet describe that earlier checkpoint. No competition submission or eligibility acceptance is claimed.
+
 ## Scope and current boundary
 
-This preparation adds explicit network separation, fail-closed transaction checks, offline unsigned deployment material and local tests. The deployed public site remains the existing Arc Testnet release at commit `003f005b4030f664dfb95f9ccc79205f14e92b27`. This adaptation is unpublished. It does not authorize deployment, transaction signing, broadcasting, mainnet payment, a paid upgrade or competition submission.
+This preparation adds explicit network separation, fail-closed transaction checks, offline unsigned deployment material and local tests. These controls are now included in the published application source `4dae47f01bb78126e5c70621d87af0c9899cb9c6`, release `20261021T192007Z-4dae47f`. Publishing a disabled preparation view does not deploy a contract or authorize mainnet signing, broadcasting, payment, a paid upgrade or competition submission. Any later documentation-only repository commit remains distinct from that deployed app source.
 
 Arc Testnet (`5042002`) remains the default and preserves the existing contract and historical demonstration receipts. Testnet evidence must never be relabelled as mainnet evidence. Arc mainnet (`5042`) is a separate preparation target. Its contract address is blank and its write actions are disabled.
 
@@ -16,7 +18,7 @@ Arc Testnet (`5042002`) remains the default and preserves the existing contract 
 - Keep bill reads, receipt hints, caches, history and explorer links scoped to the selected chain and configured contract. A testnet receipt must not populate a mainnet receipt view.
 - Native USDC gas and payable value use 18 decimal places; the ERC-20 representation uses 6. SplitReceipt uses native `payShare`, with no ERC-20 approval or permit. A native transaction still requires the wallet owner's review and confirmation.
 
-The implementation and test evidence for this session must be checked against these conditions; the document itself is not evidence that a check passed.
+The [dated preparation evidence](../tests/evidence/mainnet-preparation-2026-10-21.json) records observed checks against these conditions; this explanatory document is not an independent test result.
 
 ## Offline unsigned deployment material
 
@@ -52,13 +54,13 @@ Stop after any failed, rejected, unexpected or ambiguous request. Do not replace
 
 At the session's starting Studio baseline, typecheck, 36 TypeScript tests, 35 Solidity tests and a production build were observed to pass. Those observations describe the earlier baseline, not acceptance of this adaptation.
 
-**Final adaptation in Studio: typecheck, 67 TypeScript tests, 38 Solidity tests (including three local 5042 preparation tests), 256 fuzz runs, production build, dependency isolation and offline unsigned-bundle generation passed. Exact terminal export and independent local typecheck, 67 TypeScript tests, 38 Solidity tests, 256 fuzz runs, build and dependency isolation passed. Local browser checks confirmed the disabled mainnet preview, wrong-context recovery and preserved legacy testnet Bill 3 with 2/2 freshly verified receipts. Live wallet connection/signing was not retested; one external wallet-extension injection error was observed. See tests/evidence/mainnet-preparation-2026-10-21.json.**
+**Final adaptation in Studio: typecheck, 67 TypeScript tests, 38 Solidity tests (including three local 5042 preparation tests), 256 fuzz runs, production build, dependency isolation and offline unsigned-bundle generation passed. Exact terminal export and independent local typecheck, 67 TypeScript tests, 38 Solidity tests, 256 fuzz runs, build and dependency isolation passed. Local browser checks confirmed the disabled mainnet preview, wrong-context recovery and preserved legacy testnet Bill 3 with 2/2 freshly verified receipts. Live wallet connection/signing was not retested at that preparation checkpoint; one external wallet-extension injection error was observed. See [the dated evidence](../tests/evidence/mainnet-preparation-2026-10-21.json). The subsequent wallet-session phase passed 76 TypeScript tests and the published app completed Bill 6 on testnet on 22 October; see [current public-flow evidence](../tests/evidence/public-wallet-flow-2026-10-22.json).**
 
-Record exact commands, actual results, exported-source hashes and independent readback here after they have been observed. Planned checks cover preserved testnet behavior, blank mainnet configuration, the unconditional mainnet release lock, chain/address separation, wrong-network and bytecode rejection, native decimal conversion, exact payable values, stale wallet/page scope handling and unsigned artifacts without signing or broadcasting. Solidity tests using `vm.chainId(5042)` and `vm.deal` run on a local EVM with local balances; they are not mainnet or fork execution.
+The recorded checks cover preserved testnet behavior, blank mainnet configuration, the unconditional mainnet release lock, chain/address separation, wrong-network and bytecode rejection, native decimal conversion, exact payable values, stale wallet/page scope handling and unsigned artifacts without signing or broadcasting. Solidity tests using `vm.chainId(5042)` and `vm.deal` run on a local EVM with local balances; they are not mainnet or fork execution.
 
 ## Source and process provenance
 
-For this preparation, Codex prepared source inputs outside Studio, and the actual file changes are applied through Arc Studio's official manual terminal. The Studio agent daily quota was observed at 99%; this path uses the available terminal without a paid upgrade. It must not be described as Studio AI generating every source file.
+For this preparation, Codex prepared source inputs outside Studio, and the actual file changes were applied through Arc Studio's official manual terminal. The Studio agent daily quota was observed at 99% during that phase; the available terminal was used without a paid upgrade. This is a dated observation, not a statement of today's remaining quota. It must not be described as Studio AI generating every source file.
 
 An observed Download Code archive was an older snapshot. Acceptance therefore requires exact terminal export of the current files, byte-for-byte readback and independent verification. An archive download alone is not proof of the current terminal state. See [PROVENANCE.md](PROVENANCE.md) for historical mixed Studio/local development and this session's record.
 
@@ -66,4 +68,8 @@ Retain the actual editing, tests and export process as supporting material. Wher
 
 ## Exact readback result
 
-The initial exact terminal export SHA-256 is 28f93fdd46c74e23566a926daf4f639294249008d7f1237f43ebdae1aea43454. Its 25 source/document files were copied byte-for-byte; the protected contract and build dependency files remained unchanged. Final documentation and this evidence record are exported as a separate docs-only readback. The deployed public release remains 003f005; no mainnet deployment or broadcast occurred.
+The initial exact terminal export SHA-256 is 28f93fdd46c74e23566a926daf4f639294249008d7f1237f43ebdae1aea43454. Its 25 source/document files were copied byte-for-byte; the protected contract and build dependency files remained unchanged. Final documentation and this evidence record are exported as a separate docs-only readback. The later published application source is `4dae47f01bb78126e5c70621d87af0c9899cb9c6`, release `20261021T192007Z-4dae47f`. The original evidence JSON remains a dated preparation snapshot, including its then-unpublished and no-wallet-retest status. Later 11-file wallet adoption used actual per-file Studio hash readback, not a fresh full-source ZIP. Mainnet remains undeployed with writes locked false; later public payments were testnet-only.
+
+## Submission consequence
+
+The official round requires a Studio-built mainnet app/contract and a real mainnet USDC movement. Disabled source preparation, local-EVM tests and unsigned drafts cannot satisfy those requirements. No eligible submission or mixed-provenance exception is claimed. See [READINESS.md](submission/READINESS.md), [PROVENANCE.md](PROVENANCE.md) and [the historical cost study](submission/MAINNET-COST-STUDY.md). No new fee estimate is provided by this documentation refresh.

@@ -61,7 +61,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function WalletChecks({ onBack }: WalletChecksProps) {
   const readiness = useDeploymentReadiness()
-  const gasLabel = activeNetwork.isTestnet ? 'Testnet USDC (no real value)' : 'Real USDC; no mainnet transactions enabled in this preparation build'
+  const gasLabel = activeNetwork.isTestnet ? 'Testnet USDC (no real value)' : activeNetwork.mainnetWritesEnabled ? 'Real USDC, charged separately from the share' : 'Real USDC; transactions are disabled for this deployment'
   return (
     <div className="max-w-2xl mx-auto space-y-6">
 
@@ -173,7 +173,7 @@ export default function WalletChecks({ onBack }: WalletChecksProps) {
             'Ask you to "verify" your wallet or send a test transaction first',
             'Contact you on social media or direct message',
             'Automatically switch your wallet or transfer funds when changing the app network',
-            'Send mainnet transactions in this preparation build',
+            'Send funds without a transaction you review and confirm in your wallet',
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-3 py-1">
               <span

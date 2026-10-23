@@ -7,6 +7,7 @@ import {
   type PublicNetworkEnv, type ReadonlyDeploymentClient,
 } from '../src/networkContext.ts'
 import { requireChain } from '../src/onchain-facts.ts'
+import { REVIEWED_MAINNET_DEPLOYMENT } from '../src/mainnetDeployment.ts'
 
 const code: Hex = '0x600060005260206000f3'
 const runtimeHash = keccak256(code)
@@ -46,6 +47,7 @@ test('blank and legacy bill URLs remain testnet despite mainnet env flags or dep
 test('mainnet missing configuration stays blank and cannot inherit any testnet deployment field', async () => {
   const context = resolveNetworkContext('?network=mainnet', {
     ...testEnv, VITE_SPLIT_RECEIPT_ADDRESS: TESTNET_CONTRACT, VITE_SPLIT_RECEIPT_DEPLOY_BLOCK: '67660831',
+    VITE_SPLIT_RECEIPT_MAINNET_ADDRESS: '', VITE_SPLIT_RECEIPT_MAINNET_DEPLOY_BLOCK: '', VITE_SPLIT_RECEIPT_MAINNET_RUNTIME_HASH: '',
   })
   assert.equal(context.chainId, ARC_MAINNET_CHAIN_ID)
   assert.equal(context.contract, null)
@@ -142,13 +144,13 @@ test('a verified testnet deployment requires the exact wallet chain and valid ac
   }
 })
 
-test('no URL, environment flag or ready deployment can arm mainnet transactions', async () => {
+test('no URL, environment flag or arbitrary ready deployment can arm mainnet transactions', async () => {
   const context = resolveNetworkContext('?network=mainnet&chainId=5042', {
     ...mainEnv, VITE_MAINNET_WRITES_ENABLED: 'true', MAINNET_WRITES_ENABLED: 'true',
   })
   const ready = await checkDeployment(client(context.chainId).rpc, context)
   assert.equal(ready.status, 'ready')
-  assert.equal(MAINNET_WRITES_ENABLED, false)
+  assert.equal(MAINNET_WRITES_ENABLED, REVIEWED_MAINNET_DEPLOYMENT !== null)
   assert.equal(context.mainnetWritesEnabled, false)
   let writes = 0
   try { assertCanWrite(context, ready, context.chainId, wallet); writes++ } catch { /* required preparation lock */ }
@@ -187,4 +189,33 @@ test('chain facts keep native decimals at eighteen, expose correct explorers and
   assert.equal(mainnet.isTestnet, false)
   assert.notEqual(testnet.explorerBase, mainnet.explorerBase)
   assert.throws(() => requireChain(1), /Unsupported network/)
+})
+
+
+test('the source-pinned deployment stays closed until published; then exact verification and wallet are required', () => {
+  const context = resolveNetworkContext('?network=mainnet&chainId=5042')
+  if (!REVIEWED_MAINNET_DEPLOYMENT) {
+    assert.equal(context.mainnetWritesEnabled, false)
+    assert.equal(context.contract, null)
+    return
+  }
+  assert.equal(context.contract, REVIEWED_MAINNET_DEPLOYMENT.contract.toLowerCase())
+  assert.equal(context.deploymentBlock, REVIEWED_MAINNET_DEPLOYMENT.deploymentBlock)
+  assert.equal(context.expectedRuntimeHash, REVIEWED_MAINNET_DEPLOYMENT.runtimeHash.toLowerCase())
+  assert.equal(context.mainnetWritesEnabled, true)
+  const ready = { status: 'ready' as const, contextKey: context.contextKey, reason: null }
+  assert.equal(getWriteBlockReason(context, ready, 5042, wallet), null)
+  assert.ok(getWriteBlockReason(context, ready, 5042002, wallet))
+  assert.ok(getWriteBlockReason(context, ready, 5042, undefined))
+  assert.ok(getWriteBlockReason(context, { ...ready, status: 'code-mismatch' }, 5042, wallet))
+  assert.ok(getWriteBlockReason(context, { ...ready, contextKey: 'stale' }, 5042, wallet))
+  for (const env of [
+    { VITE_SPLIT_RECEIPT_MAINNET_ADDRESS: customMainnet },
+    { VITE_SPLIT_RECEIPT_MAINNET_DEPLOY_BLOCK: String(REVIEWED_MAINNET_DEPLOYMENT.deploymentBlock + 1n) },
+    { VITE_SPLIT_RECEIPT_MAINNET_RUNTIME_HASH: '0x' + '9'.repeat(64) },
+  ]) {
+    const changed = resolveNetworkContext('?network=mainnet&chainId=5042', env)
+    assert.equal(changed.mainnetWritesEnabled, false)
+    assert.ok(getWriteBlockReason(changed, { ...ready, contextKey: changed.contextKey }, 5042, wallet))
+  }
 })

@@ -81,7 +81,9 @@ test('verified testnet identity permits a request only for the connected matchin
 test('unconfigured mainnet does zero RPC and zero writes; even a ready mock cannot unlock it', async () => {
   let calls = 0
   const client = { getChainId: async () => { calls++; return 5042 }, getCode: async () => { calls++; return CODE } }
-  const mainnet = resolveNetworkContext('https://app.example/?network=mainnet')
+  const mainnet = resolveNetworkContext('https://app.example/?network=mainnet', {
+    VITE_SPLIT_RECEIPT_MAINNET_ADDRESS: '', VITE_SPLIT_RECEIPT_MAINNET_DEPLOY_BLOCK: '', VITE_SPLIT_RECEIPT_MAINNET_RUNTIME_HASH: '',
+  })
   const state: ActionScopeState = { active: true, generation: 0, walletChainId: 5042, walletAddress: WALLET, walletConnectorUid: 'metamask-page-1', href: 'https://app.example/?network=mainnet' }
   const guard = createActionScopeGuard(mainnet, () => state)
   const result = await checkScopedWrite(mainnet, guard, () => checkDeployment(client, mainnet), 5042, WALLET)
