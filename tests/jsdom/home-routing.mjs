@@ -35,7 +35,7 @@ const hasVisibleButton = (w, text) => buttons(w).some((x) => x.textContent.inclu
   check('[home] both calls to action exist (button and real link)', [...d.querySelectorAll('button')].some((b) => b.textContent.includes('Open app')) && [...d.querySelectorAll('a')].some((a) => a.textContent.includes('View a settled bill') && /bill=1$/.test(a.getAttribute('href'))))
   const ext = [...d.querySelectorAll('a[target="_blank"]')]
   check('[home] outside links open in a new tab safely and announce it', ext.length >= 8 && ext.every((a) => /noopener/.test(a.rel) && /noreferrer/.test(a.rel) && a.textContent.includes('opens in a new tab')), String(ext.length))
-  check('[home] the proof links are the existing explorer payment, contract, video and source', ['explorer.arc.io/tx/0xf246c9ed', 'explorer.arc.io/address/0x8522', 'youtu.be/Uza-SlbEFNo', 'github.com/a252937166/splitreceipt'].every((x) => ext.some((a) => a.href.includes(x))))
+  check('[home] the proof links are the existing explorer payment, contract, video and source', ['explorer.arc.io/tx/0xf246c9ed', 'explorer.arc.io/address/0x8522', 'youtu.be/b1t_0tOW3uk', 'github.com/a252937166/splitreceipt'].every((x) => ext.some((a) => a.href.includes(x))))
   check('[home] FAQ: four native details items, closed by default, and one toggles open', d.querySelectorAll('#faq details').length === 4 && [...d.querySelectorAll('#faq details')].every((x) => !x.open))
   const firstDetails = d.querySelector('#faq details'); firstDetails.open = true
   check('[home] a FAQ item opens', firstDetails.open === true)

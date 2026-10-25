@@ -69,7 +69,7 @@ describe('homepage content and composition', () => {
     assert.equal(PAYMENT_EXPLORER_URL, `${MAINNET.explorerBase}/tx/${EXAMPLE_PAYMENT_HASH}`)
     assert.equal(EXAMPLE_PAYMENT_HASH, '0xf246c9ed15463fd871c96e9da353ffd183b6ff31c0b1b940982c86d09f56d5e5')
     assert.equal(GITHUB_URL, 'https://github.com/a252937166/splitreceipt')
-    assert.equal(VIDEO_URL, 'https://youtu.be/Uza-SlbEFNo')
+    assert.equal(VIDEO_URL, 'https://youtu.be/b1t_0tOW3uk')
     assert.equal(STUDIO_URL, 'https://studio.arc.io/app/65acc04e-7e22-4ae8-b72d-c2520b9f8a62')
   })
 
