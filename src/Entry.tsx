@@ -11,29 +11,15 @@
  * epoch (which stales reads that were in flight), `ReadActivationContext` tells the mounted read-only views to
  * restart their reads under the current epoch.
  */
-import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { appEpochs } from './epoch'
 import { ReadActivationContext } from './readActivation'
+import { CommitMarker, LoadBoundary } from './loadBoundary'
 import Home from './components/Home'
 import { defaultCreateSearch, isHomeSearch, settledBillSearch } from './homeRoute'
 import { readEnvAddress } from './envAddress'
 
 const AppRoot = lazy(() => import('./AppRoot'))
-
-class LoadBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false }
-  static getDerivedStateFromError() {
-    return { failed: true }
-  }
-  render() {
-    if (!this.state.failed) return this.props.children
-    return (
-      <div className="mx-auto max-w-md p-6" role="alert">
-        <p className="sr-body">The app could not be loaded. Check your connection and reload the page.</p>
-      </div>
-    )
-  }
-}
 
 export default function Entry() {
   const [search, setSearch] = useState(() => window.location.search)
@@ -42,6 +28,8 @@ export default function Entry() {
     isHomeSearch(window.location.search) ? null : window.location.search,
   )
   const latest = useRef(search)
+  // Set (and never cleared) once the app side has committed; see loadBoundary.tsx.
+  const committed = useRef(false)
   // The page epoch at the latest navigation; read-only views restart their reads when it changes.
   const [activation, setActivation] = useState(() => appEpochs.page.value)
 
@@ -88,7 +76,7 @@ export default function Entry() {
       )}
       {appSearch !== null && (
         <div hidden={home}>
-          <LoadBoundary>
+          <LoadBoundary committed={committed}>
             <Suspense
               fallback={
                 <div className="mx-auto flex max-w-md items-center gap-3 p-6" role="status">
@@ -98,6 +86,7 @@ export default function Entry() {
             >
               <ReadActivationContext.Provider value={activation}>
                 <AppRoot appSearch={appSearch} go={go} goHome={goHome} />
+                <CommitMarker committed={committed} />
               </ReadActivationContext.Provider>
             </Suspense>
           </LoadBoundary>
