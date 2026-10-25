@@ -14,6 +14,8 @@ import { fmtNativeUsdc } from '../usdcFormat'
 import { buildShareLink } from '../lib/share'
 import { useBillData, type BillData } from '../hooks/useBillData'
 import { useReceipts } from '../hooks/useReceipts'
+import { useReadActivation } from '../readActivation'
+import { startCreationProof, type Creator } from '../creationProof'
 import { useWalletSession } from '../wallet/WalletSession'
 import { useRequestScope } from '../hooks/useRequestScope'
 import { catalogCreationHint } from '../creationHints'
@@ -34,12 +36,6 @@ interface PayOutcome {
   finalHash: Hash32 | null
   reason: string
 }
-type Creator =
-  | { kind: 'unknown' }
-  | { kind: 'checking' }
-  | { kind: 'verified'; address: Address; hash: Hash32 }
-  | { kind: 'unverified'; reason: string }
-
 function payError(err: unknown): string {
   const raw = `${(err as { shortMessage?: string }).shortMessage ?? ''} ${(err as Error)?.message ?? ''}`
   const m = raw.toLowerCase()
@@ -76,6 +72,8 @@ export default function BillDetails({
   const [shareLink, setShareLink] = useState('')
 
   const scope = useRequestScope(w.epochs)
+  // Restarts the creation proof under the current page epoch after every navigation (see readActivation.ts).
+  const activation = useReadActivation()
 
   // Creator: only from a creation transaction named in the link, verified against canonical data.
   const creationHash: Hash32 | null =
@@ -87,25 +85,18 @@ export default function BillDetails({
       setCreator({ kind: 'unknown' })
       return
     }
-    let live = true
-    const pageEpoch = w.epochs.page.value
-    setCreator({ kind: 'checking' })
-    void verifyCreateBillTransaction(client, {
+    return startCreationProof({
+      client,
       chainId: context.network.chainId,
       contract: context.deployment.address,
       hash: creationHash,
+      billId,
       intended: { title: bill.title, recipient: bill.recipient, payers: bill.payers, share: bill.share },
-    }).then((r) => {
-      if (!live || w.epochs.page.value !== pageEpoch) return
-      if (r.ok && r.billId === billId) setCreator({ kind: 'verified', address: r.creator, hash: creationHash })
-      else if (r.ok) setCreator({ kind: 'unverified', reason: 'The creation transaction is for a different bill.' })
-      else setCreator({ kind: 'unverified', reason: r.reason })
+      epochs: w.epochs,
+      onState: setCreator,
     })
-    return () => {
-      live = false
-    }
     // billSig stands in for the bill fields used above.
-  }, [billSig, client, creationHash, context.network.chainId, context.deployment.address, billId])
+  }, [billSig, client, creationHash, context.network.chainId, context.deployment.address, billId, activation])
 
   const verifiedHashes = useMemo(() => Object.values(rec.receipts), [rec.receipts])
   useEffect(() => {

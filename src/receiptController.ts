@@ -121,7 +121,17 @@ export class ReceiptsController {
       candidates: input.candidates,
       isCancelled: stale,
     })
-    if (stale()) return
+    if (stale()) {
+      // A newer generation owns the state. But when only the page check said "stale", nothing newer exists, and
+      // staying "verifying" would block every later read-only retry. Nothing is committed; the view restarts the
+      // read (see readActivation.ts), and until it does the retry is available.
+      if (this.proofs.isCurrent(gen)) {
+        this.verifying = false
+        this.message = 'Receipt checks were interrupted by leaving this page. They restart when you return.'
+        this.notify()
+      }
+      return
+    }
     this.proofs.commit(gen, { verified: out.verified, invalid: out.invalid })
     this.carry = out.unresolved
     this.message = out.message
@@ -177,5 +187,24 @@ export class ReceiptsController {
       if (this.searchRun === run) this.scanning = false
       this.notify()
     }
+  }
+}
+
+/**
+ * Starts one read-only verification under the CURRENT page epoch and returns a canceller (for effect cleanup).
+ * A result that arrives after the page changed, or after the canceller ran, is discarded by the controller. The
+ * view calls this again after every navigation (see readActivation.ts) so it never stays "verifying".
+ */
+export function startReceiptRead(
+  ctl: ReceiptsController,
+  epochs: { page: { readonly value: number } },
+  build: (isStale: () => boolean) => RefreshInput,
+): () => void {
+  let live = true
+  const pageEpoch = epochs.page.value
+  const isStale = () => !live || epochs.page.value !== pageEpoch
+  void ctl.refresh(build(isStale))
+  return () => {
+    live = false
   }
 }

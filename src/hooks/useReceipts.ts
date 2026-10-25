@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import type { PublicClient } from 'viem'
-import { ReceiptsController, type ReceiptStatus } from '../receiptController'
+import { ReceiptsController, startReceiptRead, type ReceiptStatus } from '../receiptController'
 import { assembleCandidates, saveVerifiedHints, type HintHash } from '../receiptHints'
 import type { ReceiptScope } from '../receiptHistory'
 import type { PageContext } from '../networks'
 import type { EpochSources } from '../epoch'
+import { useReadActivation } from '../readActivation'
 import type { BillData } from './useBillData'
 
 export type { ReceiptStatus }
@@ -45,6 +46,8 @@ export function useReceipts(
   controller.current ??= new ReceiptsController()
   const ctl = controller.current
   const [, rerender] = useReducer((n: number) => n + 1, 0)
+  // Restarts the read under the current page epoch after every navigation (see readActivation.ts).
+  const activation = useReadActivation()
   useEffect(() => ctl.subscribe(rerender), [ctl])
 
   const scope = useMemo<ReceiptScope>(
@@ -79,17 +82,11 @@ export function useReceipts(
     [client, scope, share, paidKey, deployBlock, ctl],
   )
 
-  // One verification generation per bill snapshot (scope, share, paid set).
+  // One verification generation per bill snapshot (scope, share, paid set), restarted after each navigation.
   useEffect(() => {
     if (!client) return
-    let live = true
-    const pageEpoch = epochs.page.value
-    const isStale = () => !live || epochs.page.value !== pageEpoch
-    void ctl.refresh(buildInput(isStale))
-    return () => {
-      live = false
-    }
-  }, [client, ctl, buildInput, epochs, scopeKey])
+    return startReceiptRead(ctl, epochs, buildInput)
+  }, [client, ctl, buildInput, epochs, scopeKey, activation])
 
   const addCandidate = useCallback(
     (hash: HintHash) => {

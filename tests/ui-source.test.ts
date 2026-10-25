@@ -122,3 +122,31 @@ describe('round-2 UI source guards', () => {
     assert.ok(/exhausted: this\.exhausted && this\.carry\.length === 0/.test(ctl))
   })
 })
+
+describe('homepage guards', () => {
+  const read2 = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const homeFiles = () => ['src/components/Home.tsx', ...readdirSync(new URL('../src/components/home/', import.meta.url)).map((f) => `src/components/home/${f}`)]
+  it('the homepage code never touches a wallet, a chain read or a send', () => {
+    for (const f of homeFiles()) {
+      const code = read2(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+      assert.doesNotMatch(code, /from\s+['"](wagmi|viem|@wagmi|@tanstack|sonner)/, f)
+      assert.doesNotMatch(code, /useWalletSession|WalletMenu|useConnect|useAccount|walletSend|writeGuard|window\.ethereum|\bfetch\(|XMLHttpRequest|navigator\./, f)
+    }
+  })
+  it('the app views stay mounted (only hidden) while the homepage shows, so submitted-intent locks survive', () => {
+    const app = read2('src/Entry.tsx')
+    assert.match(app, /<div hidden=\{home\}>/)
+    assert.match(app, /appSearch !== null &&/)
+    assert.match(app, /isHomeSearch\(/)
+  })
+  it('the submitted-intent lock and both write components are not weakened by the homepage', () => {
+    const lock = read2('src/submissionLock.ts')
+    assert.match(lock, /get held\(\)/)
+    for (const f of ['src/components/CreateBill.tsx', 'src/components/BillDetails.tsx']) {
+      const code = read2(f)
+      assert.match(code, /lock\.held/)
+      assert.match(code, /lock\.hold\(/)
+      assert.match(code, /lock\.reconcile\(/)
+    }
+  })
+})

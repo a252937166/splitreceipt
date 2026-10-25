@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { describe, it } from 'node:test'
+import { dirname, join, normalize } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const root = new URL('../', import.meta.url)
 const read = (p: string) => readFileSync(new URL(p, root), 'utf8')
@@ -76,7 +78,9 @@ describe('wallet connection policy', () => {
     assert.doesNotMatch(config, /from\s+['"]wagmi\/connectors['"]/)
     assert.match(config, /multiInjectedProviderDiscovery:\s*true/)
     assert.match(config, /storage:\s*null/)
-    assert.match(read('src/main.tsx'), /reconnectOnMount=\{false\}/)
+    // The provider moved out of the entry into the lazy app side; the policy follows it.
+    assert.match(read('src/AppRoot.tsx'), /reconnectOnMount=\{false\}/)
+    assert.doesNotMatch(read('src/main.tsx'), /WagmiProvider/)
   })
 
   it('no source calls reconnect or connects without an explicit connector', () => {
@@ -86,5 +90,88 @@ describe('wallet connection policy', () => {
       assert.doesNotMatch(code, /useReconnect|reconnect\(/, f)
       assert.doesNotMatch(code, /connectAsync\(\s*\)/, f)
     }
+  })
+})
+
+describe('the bare homepage has no static path to any wallet, chain or provider code', () => {
+  const rootPath = fileURLToPath(root)
+  const BANNED_PACKAGES = /^(wagmi|viem|@wagmi\/|@tanstack\/|sonner|connectkit|@circle-fin\/|mipd)/
+  const BANNED_FILES = [
+    'src/config.ts', 'src/AppRoot.tsx', 'src/App.tsx', 'src/walletSend.ts', 'src/writeGuard.ts',
+    'src/wallet/WalletSession.tsx', 'src/wallet/WalletMenu.tsx',
+  ]
+
+  const staticImports = (code: string): string[] => {
+    const noComments = code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    const out: string[] = []
+    const re = /import\s+(?!type\b)(?:[\s\S]*?\sfrom\s+)?['"]([^'"]+)['"]/g
+    for (let m = re.exec(noComments); m; m = re.exec(noComments)) out.push(m[1])
+    return out
+  }
+  const resolveLocal = (from: string, spec: string): string | null => {
+    const base = spec.startsWith('@/') ? join('src', spec.slice(2)) : normalize(join(dirname(from), spec))
+    for (const c of [base, `${base}.ts`, `${base}.tsx`, join(base, 'index.ts'), join(base, 'index.tsx')]) {
+      if (/\.(ts|tsx)$/.test(c) && existsSync(join(rootPath, c))) return c
+    }
+    return null
+  }
+  const closure = (entry: string) => {
+    const seen = new Set<string>()
+    const packages = new Set<string>()
+    const walk = (file: string) => {
+      if (seen.has(file)) return
+      seen.add(file)
+      for (const spec of staticImports(read(file))) {
+        if (spec.startsWith('.') || spec.startsWith('@/')) {
+          const next = resolveLocal(file, spec)
+          if (next) walk(next)
+        } else packages.add(spec)
+      }
+    }
+    walk(entry)
+    return { files: [...seen].sort(), packages: [...packages].sort() }
+  }
+
+  it('main.tsx reaches the homepage, the router and the route helpers, and nothing wallet-related', () => {
+    const { files, packages } = closure('src/main.tsx')
+    for (const f of ['src/Entry.tsx', 'src/components/Home.tsx', 'src/homeRoute.ts', 'src/networks.ts']) assert.ok(files.includes(f), `${f} should be reachable`)
+    for (const f of BANNED_FILES) assert.ok(!files.includes(f), `${f} must not be statically reachable from the entry`)
+    for (const p of packages) assert.ok(!BANNED_PACKAGES.test(p), `entry closure imports ${p}`)
+    for (const f of files) assert.doesNotMatch(read(f), /\bEIP-?6963\b|eip6963:|announceProvider|window\.ethereum/i, f)
+  })
+
+  it('the app side is reached only through one lazy import, requested only for an app address', () => {
+    const entry = read('src/Entry.tsx')
+    assert.equal((entry.match(/import\(\s*['"]\.\/AppRoot['"]\s*\)/g) ?? []).length, 1)
+    assert.match(entry, /lazy\(\(\) => import\('\.\/AppRoot'\)\)/)
+    assert.match(entry, /appSearch !== null &&/)
+    // nothing else may import the app side statically
+    for (const f of sourceFiles()) {
+      if (f === 'src/Entry.tsx') continue
+      assert.doesNotMatch(read(f), /from\s+['"]\.\/?(\.\/)?AppRoot['"]/, f)
+    }
+  })
+
+  it('the wallet config and provider live only on the app side', () => {
+    const appRoot = read('src/AppRoot.tsx')
+    assert.match(appRoot, /WagmiProvider config=\{config\} reconnectOnMount=\{false\}/)
+    const importers = sourceFiles().filter((f) => /from\s+['"](\.\.?\/)+config(\.ts)?['"]/.test(read(f)))
+    for (const f of importers) assert.ok(['src/AppRoot.tsx'].includes(f) || f.startsWith('src/wallet/') || f.startsWith('src/components/') || f.startsWith('src/hooks/'), f)
+  })
+
+  it('a built entry chunk (when present) has no wallet discovery, wagmi or send code; that code is in the lazy chunk', () => {
+    const dist = new URL('dist/', root)
+    if (!existsSync(new URL('index.html', dist))) return
+    const html = readFileSync(new URL('index.html', dist), 'utf8')
+    const entrySrc = /<script[^>]+src="[^"]*\/(assets\/[^"]+\.js)"/.exec(html)?.[1]
+    assert.ok(entrySrc, 'index.html names an entry script')
+    const entry = readFileSync(new URL(entrySrc, dist), 'utf8')
+    for (const marker of ['eip6963', 'requestProvider', 'announceProvider', 'eth_sendTransaction', 'wagmi']) {
+      assert.ok(!entry.includes(marker), `entry chunk has ${marker}`)
+    }
+    assert.doesNotMatch(html, /rel="modulepreload"[^>]*AppRoot/, 'the app chunk is not preloaded by the page')
+    const lazy = readdirSync(new URL('assets/', dist)).find((n) => /^AppRoot-.*\.js$/.test(n))
+    assert.ok(lazy, 'the app side is a separate chunk')
+    assert.ok(readFileSync(new URL(`assets/${lazy}`, dist), 'utf8').includes('requestProvider'))
   })
 })

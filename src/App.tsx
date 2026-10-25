@@ -1,56 +1,42 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { appEpochs } from './epoch'
+import { useCallback, useMemo, useState } from 'react'
 import { AlertTriangle, FilePlus2, Receipt, Search } from 'lucide-react'
 import CreateBill from './components/CreateBill'
 import BillDetails from './components/BillDetails'
 import OpenBill from './components/OpenBill'
 import ContextProblemView from './components/ContextProblemView'
+import { defaultCreateSearch } from './homeRoute'
+import { readEnvAddress } from './envAddress'
 import WalletMenu from './wallet/WalletMenu'
 import { WalletSessionProvider } from './wallet/WalletSession'
 import { NETWORKS, TESTNET, buildContextSearch, parsePageContext, type Hash32, type PageContext } from './networks'
 
 type Tab = 'create' | 'open'
 
-function readEnvAddress(): string | undefined {
-  const raw = import.meta.env.VITE_SPLIT_RECEIPT_ADDRESS as string | undefined
-  return raw && raw.length > 0 ? raw : undefined
-}
-
-export default function App() {
-  const [search, setSearch] = useState(() => window.location.search)
-  const latest = useRef(search)
-
-  useEffect(() => {
-    const onPop = () => {
-      // Every real navigation bumps the page epoch so pending requests from the old page can never commit.
-      if (window.location.search !== latest.current) appEpochs.page.bump()
-      latest.current = window.location.search
-      setSearch(window.location.search)
-    }
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
-  }, [])
-
-  const parsed = useMemo(() => parsePageContext(search, readEnvAddress()), [search])
-  const go = useCallback((next: string) => {
-    if (next !== latest.current) appEpochs.page.bump()
-    latest.current = next
-    window.history.pushState({}, '', `${window.location.pathname}${next}`)
-    setSearch(next)
-    window.scrollTo({ top: 0 })
-  }, [])
-
+/**
+ * The app side: the wallet session for the page's network and the app views. Rendered inside the wagmi provider by
+ * `AppRoot` (a lazy chunk), never by the homepage.
+ */
+export default function AppView({
+  appSearch,
+  go,
+  goHome,
+}: {
+  appSearch: string
+  go: (next: string) => void
+  goHome: () => void
+}) {
+  const parsed = useMemo(() => parsePageContext(appSearch, readEnvAddress()), [appSearch])
   // The wallet session follows the page network; an invalid link falls back to Testnet.
   return (
     <WalletSessionProvider network={parsed.ok ? parsed.context.network : TESTNET}>
-      <Shell parsed={parsed} go={go} />
+      <Shell parsed={parsed} go={go} goHome={goHome} />
     </WalletSessionProvider>
   )
 }
 
 type Parsed = ReturnType<typeof parsePageContext>
 
-function Shell({ parsed, go }: { parsed: Parsed; go: (next: string) => void }) {
+function Shell({ parsed, go, goHome }: { parsed: Parsed; go: (next: string) => void; goHome: () => void }) {
   const [tab, setTab] = useState<Tab>('create')
 
   const openBill = useCallback(
@@ -63,7 +49,7 @@ function Shell({ parsed, go }: { parsed: Parsed; go: (next: string) => void }) {
   const goCreate = useCallback(() => {
     setTab('create')
     if (parsed.ok) go(buildContextSearch(parsed.context, null))
-    else go('')
+    else go(defaultCreateSearch(readEnvAddress()))
   }, [go, parsed])
 
   const goDemo = useCallback(() => {
@@ -80,7 +66,7 @@ function Shell({ parsed, go }: { parsed: Parsed; go: (next: string) => void }) {
         <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
           <button
             type="button"
-            onClick={goCreate}
+            onClick={goHome}
             className="order-1 flex min-w-0 items-center gap-2 border-0 bg-transparent p-0 touch-target"
             aria-label="SplitReceipt home"
           >

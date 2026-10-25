@@ -1,10 +1,13 @@
 import { AlertTriangle } from 'lucide-react'
 import type { ContextProblem } from '../networks'
+import { defaultCreateSearch } from '../homeRoute'
+import { readEnvAddress } from '../envAddress'
 
 /**
  * Shown when the link names a network, chain or contract this build does not
  * support. Nothing is silently substituted; recovery is a full navigation to
- * the clean Arc Testnet page, which clears the old bill, receipts and contract.
+ * the clean Arc Testnet app entry (the default create form on the reviewed contract), which clears the old
+ * bill, receipts and contract. It is not the bare path: that is the marketing homepage.
  */
 export default function ContextProblemView({ problem }: { problem: ContextProblem }) {
   return (
@@ -22,7 +25,7 @@ export default function ContextProblemView({ problem }: { problem: ContextProble
         Nothing was loaded and no wallet request was made. Bills are only shown for a reviewed contract on the
         network named in the link, so a link for a different network or contract is never reinterpreted.
       </p>
-      <a className="btn-primary" style={{ textDecoration: 'none' }} href={window.location.pathname}>
+      <a className="btn-primary" style={{ textDecoration: 'none' }} href={`${window.location.pathname}${defaultCreateSearch(readEnvAddress())}`}>
         Open SplitReceipt on Arc Testnet
       </a>
     </section>

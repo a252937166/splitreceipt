@@ -1,13 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { WagmiProvider } from 'wagmi'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Toaster } from 'sonner'
-import App from './App.tsx'
-import { config } from './config.ts'
+import Entry from './Entry.tsx'
 import './index.css'
-
-const queryClient = new QueryClient()
 
 async function boot() {
   // Development only, and only inside the Arc Studio preview frame: forwards console
@@ -24,12 +18,8 @@ async function boot() {
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <WagmiProvider config={config} reconnectOnMount={false}>
-        <QueryClientProvider client={queryClient}>
-          <App />
-          <Toaster position="bottom-center" />
-        </QueryClientProvider>
-      </WagmiProvider>
+      {/* No wallet provider here: the wagmi provider and its config load lazily with the app side (Entry.tsx). */}
+      <Entry />
     </React.StrictMode>,
   )
 }

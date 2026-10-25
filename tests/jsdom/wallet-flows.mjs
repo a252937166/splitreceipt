@@ -66,7 +66,7 @@ async function connect(app, wallet) {
 // ── Scenario 1: dialog keyboard + happy path reaches the wallet exactly once ──
 {
   const wallet = makeWallet({ chainHex: '0x4cef52' })
-  const app = await boot({ search: '', provider: wallet.provider })
+  const app = await boot({ search: '?network=testnet', provider: wallet.provider })
   const { w } = app
   await sleep(1500)
   const trigger = [...w.document.querySelectorAll('button')].find((b) => b.textContent.includes('Connect wallet'))
@@ -103,7 +103,7 @@ async function connect(app, wallet) {
 // ── Scenario 2: account goes A -> B -> A while eth_accounts is pending ──
 {
   const wallet = makeWallet({ chainHex: '0x4cef52' })
-  const app = await boot({ search: '', provider: wallet.provider })
+  const app = await boot({ search: '?network=testnet', provider: wallet.provider })
   const { w } = app
   await sleep(1500)
   await connect(app, wallet)
@@ -122,7 +122,7 @@ async function connect(app, wallet) {
 // ── Scenario 3: provider chain changes and returns while pending ──
 {
   const wallet = makeWallet({ chainHex: '0x4cef52' })
-  const app = await boot({ search: '', provider: wallet.provider })
+  const app = await boot({ search: '?network=testnet', provider: wallet.provider })
   const { w } = app
   await sleep(1500)
   await connect(app, wallet)
@@ -140,7 +140,7 @@ async function connect(app, wallet) {
 // ── Scenario 4: navigation A -> B -> A while pending ──
 {
   const wallet = makeWallet({ chainHex: '0x4cef52' })
-  const app = await boot({ search: '', provider: wallet.provider })
+  const app = await boot({ search: '?network=testnet', provider: wallet.provider })
   const { w } = app
   await sleep(1500)
   await connect(app, wallet)
@@ -157,7 +157,7 @@ async function connect(app, wallet) {
 // ── Scenario 5: wallet on the wrong network is refused / offered a switch ──
 {
   const wallet = makeWallet({ chainHex: '0x1' })
-  const app = await boot({ search: '', provider: wallet.provider })
+  const app = await boot({ search: '?network=testnet', provider: wallet.provider })
   const { w } = app
   await sleep(1500)
   await connect(app, wallet)

@@ -161,7 +161,7 @@ const connect = async (app) => { click(app.w, 'Connect wallet'); await sleep(200
   const createInput = encodeFunctionData({ abi: ABI, functionName: 'createBill', args: ['Lock test', R, [A, B], SHARE] })
   const chain = emulator({ contract: C1, billId: 99n, mode: 'timeout', kind: 'create', createInput })
   const wallet = makeWallet()
-  const app = await boot({ search: '', provider: wallet.provider })
+  const app = await boot({ search: '?network=testnet', provider: wallet.provider })
   const { w } = app
   await sleep(1500); await connect(app)
   const fill = () => {
@@ -173,6 +173,17 @@ const connect = async (app) => { click(app.w, 'Connect wallet'); await sleep(200
   click(w, 'Create bill'); await sleep(7000)
   check('[create] one wallet request, then sent-unverified', wallet.sends.length === 1 && app.text().includes('Sent, but the result is not verified yet'))
   check('[create] no Start over / Dismiss control exists', !has(w, 'Start over') && !has(w, 'Dismiss'))
+  // A visit to the homepage must not discard the submitted-intent lock: the app stays mounted but hidden.
+  click(w, 'SplitReceipt'); await sleep(500)
+  check('[create] homepage visit: the homepage shows', app.text().includes('Split the bill. Keep the proof.'))
+  // The settled example is a separate-tab link: following it must not navigate or remount the held app.
+  const settledLinks = [...w.document.querySelectorAll('a')].filter((x) => x.textContent.includes('View a settled bill') || x.textContent.includes('Open Bill 1 in the app'))
+  let observedPrevented = null
+  w.document.addEventListener('click', (e) => { observedPrevented = e.defaultPrevented; e.preventDefault() }, { once: true })
+  settledLinks[0].dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })); await sleep(300)
+  check('[create] settled example: new-tab anchors, click not intercepted, held app untouched', settledLinks.length === 2 && settledLinks.every((x) => x.target === '_blank' && /noopener/.test(x.rel)) && observedPrevented === false && w.location.search === '')
+  click(w, 'Open app'); await sleep(500)
+  check('[create] after the homepage visit the sent transaction is still held with Check again', app.text().includes('Sent, but the result is not verified yet') && has(w, 'Check again'))
   const form = w.document.querySelector('form')
   form.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true })); await sleep(1500) // e.g. pressing Enter
   check('[create] form submit while locked: ZERO second wallet request', wallet.sends.length === 1)

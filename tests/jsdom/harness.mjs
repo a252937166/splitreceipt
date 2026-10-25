@@ -24,6 +24,9 @@ export async function boot({ search = '', provider = null, pretty = true } = {})
   w.IS_REACT_ACT_ENVIRONMENT = false
   g.IS_REACT_ACT_ENVIRONMENT = false
   w.fetch = g.fetch
+  // count every wallet-discovery request (EIP-6963) from the start, so a page that must not discover wallets can be checked
+  w.__discoveryRequests = 0
+  w.addEventListener('eip6963:requestProvider', () => { w.__discoveryRequests += 1 })
   // fake EIP-6963 wallet
   if (provider) {
     w.addEventListener('eip6963:requestProvider', () => {
@@ -38,16 +41,14 @@ export async function boot({ search = '', provider = null, pretty = true } = {})
   const server = await createServer({ root: PROJECT_ROOT, server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
   const React = (await import('react')).default
   const { createRoot } = await import('react-dom/client')
-  const { WagmiProvider } = await import('wagmi')
-  const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query')
-  const { config } = await server.ssrLoadModule('/src/config.ts')
-  const App = (await server.ssrLoadModule('/src/App.tsx')).default
+  // The entry shell only: the wagmi config and providers load lazily with the app side (as in production).
+  const Entry = (await server.ssrLoadModule('/src/Entry.tsx')).default
   const epochMod = await server.ssrLoadModule('/src/epoch.ts')
   const h = React.createElement
   const root = createRoot(document.getElementById('root'))
-  root.render(h(React.StrictMode, null, h(WagmiProvider, { config, reconnectOnMount: false }, h(QueryClientProvider, { client: new QueryClient() }, h(App)))))
+  root.render(h(React.StrictMode, null, h(Entry)))
   const text = () => document.body.textContent.replace(/\s+/g, ' ').trim()
   const stop = async () => { root.unmount(); await server.close(); console.error = origErr }
-  return { w, text, errors, stop, config, epochs: epochMod.appEpochs, server }
+  return { w, text, errors, stop, epochs: epochMod.appEpochs, server }
 }
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
